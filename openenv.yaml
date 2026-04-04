@@ -1,0 +1,9 @@
+spec_version: 1
+name: disaster_env
+type: space
+runtime: fastapi
+app: server.app:app
+port: 8000
+description: "Flood disaster response simulation. LLM agent acts as emergency coordinator managing rescue resources across multiple zones with time-based constraints."
+version: "1.0.0"
+dockerfile: Dockerfile
