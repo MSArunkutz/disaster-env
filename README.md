@@ -1,3 +1,12 @@
+---
+title: Disaster Response RL Environment
+emoji: 🌊
+colorFrom: blue
+colorTo: red
+sdk: docker
+pinned: false
+---
+
 # Disaster Response RL Environment
 
 A flood disaster response simulation environment built on the [OpenEnv](https://github.com/meta-pytorch/OpenEnv) spec.
