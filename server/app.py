@@ -44,6 +44,13 @@ app = create_app(
 
 
 def main(host: str = "0.0.0.0", port: int = None):
+    """
+    Entry point for direct execution via uv run or python -m.
+    This function enables running the server without Docker:
+        uv run --project . server
+        python -m disaster_env.server.app
+        openenv serve disaster_env
+    """
     import uvicorn
     port = port or int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host=host, port=port)
