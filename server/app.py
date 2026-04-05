@@ -43,7 +43,7 @@ app = create_app(
 )
 
 
-def main(host: str = "0.0.0.0", port: int = None):
+def main():
     """
     Entry point for direct execution via uv run or python -m.
     This function enables running the server without Docker:
@@ -52,15 +52,10 @@ def main(host: str = "0.0.0.0", port: int = None):
         openenv serve disaster_env
     """
     import uvicorn
-    port = port or int(os.environ.get("PORT", 8000))
+    port = int(os.environ.get("PORT", 8000))
+    host = os.environ.get("HOST", "0.0.0.0")
     uvicorn.run(app, host=host, port=port)
 
 
-
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--host", type=str, default="0.0.0.0")
-    parser.add_argument("--port", type=int, default=None)
-    args = parser.parse_args()
-    main(host=args.host, port=args.port)
+    main()
