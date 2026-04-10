@@ -3,7 +3,13 @@ name: disaster_env
 type: space
 runtime: fastapi
 app: server.app:app
-port: 8000
-description: "Flood disaster response simulation. LLM agent acts as emergency coordinator managing rescue resources across multiple zones with time-based constraints."
+port: 7860
+description: "Flood disaster response simulation environment for OpenEnv — LLM agent coordinates rescue resources across flood-affected zones"
 version: "1.0.0"
-dockerfile: Dockerfile
+tasks:
+  - id: easy
+    grader: openenv_disaster_env.graders.grade_easy
+  - id: medium
+    grader: openenv_disaster_env.graders.grade_medium
+  - id: hard
+    grader: openenv_disaster_env.graders.grade_hard

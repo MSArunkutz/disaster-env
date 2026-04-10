@@ -54,13 +54,17 @@ def compute_score(env) -> float:
     return clamp(score)
 
 
-def grade_easy(env) -> float:
+def grade_easy(env=None) -> float:
+    if env is None:
+        return 0.0
     if env.difficulty != "easy":
         raise ValueError(f"Expected easy, got {env.difficulty}")
     return compute_score(env)
 
 
-def grade_medium(env) -> float:
+def grade_medium(env=None) -> float:
+    if env is None:
+        return 0.0
     if env.difficulty != "medium":
         raise ValueError(f"Expected medium, got {env.difficulty}")
     base = compute_score(env)
@@ -71,7 +75,9 @@ def grade_medium(env) -> float:
     return clamp(base - ignored * 0.05)
 
 
-def grade_hard(env) -> float:
+def grade_hard(env=None) -> float:
+    if env is None:
+        return 0.0
     if env.difficulty != "hard":
         raise ValueError(f"Expected hard, got {env.difficulty}")
     base = compute_score(env)
@@ -88,8 +94,9 @@ GRADERS = {
     "hard":   grade_hard,
 }
 
-
-def grade(env) -> float:
+def grade(env=None) -> float:
+    if env is None:
+        return 0.0
     grader = GRADERS.get(env.difficulty)
     if not grader:
         raise ValueError(f"No grader for difficulty: {env.difficulty}")
