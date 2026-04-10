@@ -64,8 +64,9 @@ else:
     API_KEY      = os.getenv("HF_TOKEN")
     MODEL_NAME   = os.getenv("MODEL_NAME","meta-llama/Llama-3.1-8B-Instruct")
 
-BASE_URL     = os.getenv("ENV_BASE_URL", "http://localhost:8000")
+BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:7860")
 
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 
 
 DIFFICULTIES     = ["easy", "medium", "hard"]
@@ -270,49 +271,57 @@ async def main_async():
     print(f"  API_BASE_URL: {API_BASE_URL}")
     print(f"  MODEL_NAME:   {MODEL_NAME}")
     print(f"  HF_TOKEN:     {'set' if API_KEY else 'MISSING'}")
+    print(f"  IMAGE:        {LOCAL_IMAGE_NAME or 'using BASE_URL'}")
     print(f"{'='*50}\n")
     
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
     scores = {}
     summaries = {}
 
-    async with DisasterEnv(base_url=BASE_URL) as env:
-        for difficulty in DIFFICULTIES:
-            elapsed = time.time() - total_start
-            remaining = TOTAL_TIME_BUDGET - elapsed
+    # Connect to environment — use docker image if provided
+    if LOCAL_IMAGE_NAME:
+        env = await DisasterEnv.from_docker_image(LOCAL_IMAGE_NAME)
+        env_context = env
+    else:
+        env_context = DisasterEnv(base_url=BASE_URL)
 
-            if remaining < 60:
-                print(f"\nTime budget exhausted — skipping {difficulty.upper()}")
-                scores[difficulty] = 0.0
-                summaries[difficulty] = None
-                continue
+    try:
+        async with env_context as env:
+            for difficulty in DIFFICULTIES:
+                elapsed = time.time() - total_start
+                remaining = TOTAL_TIME_BUDGET - elapsed
 
-            print(f"\n[Budget] {remaining:.0f}s remaining for {difficulty.upper()}")
-            score, summary = await run_episode(client, env, difficulty, remaining)
-            scores[difficulty] = score
-            summaries[difficulty] = summary
+                if remaining < 60:
+                    print(f"\nTime budget exhausted — skipping {difficulty.upper()}")
+                    scores[difficulty] = 0.0
+                    summaries[difficulty] = None
+                    continue
 
-    total_elapsed = time.time() - total_start
+                print(f"\n[Budget] {remaining:.0f}s remaining for {difficulty.upper()}")
+                score, summary = await run_episode(client, env, difficulty, remaining)
+                scores[difficulty] = score
+                summaries[difficulty] = summary
+    finally:
+        total_elapsed = time.time() - total_start
 
-    # Print all episode summaries together
-    print(f"\n{'='*50}")
-    print("ALL EPISODE SUMMARIES:")
-    print(f"{'='*50}")
-    for diff, s in summaries.items():
-        if s:
-            print(f"\n  {diff.upper()}")
-            print(f"    Steps     : {s['steps']}/{s['max_steps']}")
-            print(f"    Rescued   : {s['rescued']}/{s['total']}")
-            print(f"    Score     : {s['score']:.4f}")
-            print(f"    Time      : {s['elapsed']:.1f}s")
+        print(f"\n{'='*50}")
+        print("ALL EPISODE SUMMARIES:")
+        print(f"{'='*50}")
+        for diff, s in summaries.items():
+            if s:
+                print(f"\n  {diff.upper()}")
+                print(f"    Steps     : {s['steps']}/{s['max_steps']}")
+                print(f"    Rescued   : {s['rescued']}/{s['total']}")
+                print(f"    Score     : {s['score']:.4f}")
+                print(f"    Time      : {s['elapsed']:.1f}s")
 
-    print(f"\n{'='*50}")
-    print("FINAL SCORES:")
-    for diff, score in scores.items():
-        print(f"  {diff.upper():10s}: {score:.4f}")
-    print(f"  {'AVERAGE':10s}: {sum(scores.values())/len(scores):.4f}")
-    print(f"  Total time: {total_elapsed:.1f}s ({total_elapsed/60:.1f}min)")
-    print(f"{'='*50}")
+        print(f"\n{'='*50}")
+        print("FINAL SCORES:")
+        for diff, score in scores.items():
+            print(f"  {diff.upper():10s}: {score:.4f}")
+        print(f"  {'AVERAGE':10s}: {sum(scores.values())/len(scores):.4f}")
+        print(f"  Total time: {total_elapsed:.1f}s ({total_elapsed/60:.1f}min)")
+        print(f"{'='*50}")
 
 def main():
     asyncio.run(main_async())
