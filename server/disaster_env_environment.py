@@ -25,6 +25,16 @@ except (ImportError, ModuleNotFoundError):
 from openenv.core.env_server import Environment
 
 
+_MILESTONE_INTERVALS = {"easy": 4, "medium": 5, "hard": 7}
+
+def calculate_milestones(difficulty: str, max_steps: int) -> set:
+    """Return milestone step numbers scaled to max_steps and difficulty."""
+    n = _MILESTONE_INTERVALS.get(difficulty, 4)
+    steps = {round(max_steps * i / n) for i in range(1, n)}
+    steps.add(max_steps)
+    return steps
+
+
 class DisasterEnvEnvironment(Environment):
 
     def __init__(self, difficulty: str = "easy"):
@@ -54,6 +64,7 @@ class DisasterEnvEnvironment(Environment):
         self.cascade_every    = self.scenario["cascade_every"]
         self.cascade_amount   = self.scenario["cascade_amount"]
         self.total_casualties = self.scenario["total_casualties"]
+        self.milestones       = calculate_milestones(self.difficulty, self.max_steps)
 
     # ─── Step ─────────────────────────────────────────────────────────────────
 
@@ -325,7 +336,27 @@ class DisasterEnvEnvironment(Environment):
     def _calculate_reward(self) -> float:
         if self.total_casualties == 0:
             return 0.0
-        return round(self.total_rescued / self.total_casualties, 4)
+
+        is_milestone = self.current_step in self.milestones
+        is_done = self.current_step >= self.max_steps or self._check_done()
+
+        if not (is_milestone or is_done):
+            return 0.0
+
+        try:
+            from graders import compute_score
+        except ImportError:
+            import sys, os
+            sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            from graders import compute_score
+
+        score = compute_score(self)
+
+        # Bonus at every milestone — harder difficulties reach milestones more often
+        if is_milestone:
+            score = min(1.0, score + 0.1)
+
+        return round(score, 4)
 
     def final_score(self) -> float:
         if self.total_casualties == 0:

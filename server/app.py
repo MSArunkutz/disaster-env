@@ -9,6 +9,8 @@ FastAPI application for the Disaster Response Environment.
 """
 
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 try:
     from openenv.core.env_server.http_server import create_app

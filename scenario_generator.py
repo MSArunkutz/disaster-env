@@ -3,12 +3,15 @@ Scenario Generator for Disaster Response Environment.
 Pure randomization — no LLM calls.
 """
 
+import os
 import random
 import math
 from typing import Dict, Any
 
 # ─── Common Configurations ─────────────────────────────────────────────────
-MAX_STEPS=200
+UNLIMITED_MODE = os.getenv("UNLIMITED_MODE", "false").lower() == "true"
+_default_max = "9999" if UNLIMITED_MODE else "200"
+MAX_STEPS = int(os.getenv("MAX_STEPS", _default_max))
 
 # ─── Difficulty Configuration ─────────────────────────────────────────────────
 

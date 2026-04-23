@@ -7,11 +7,50 @@ sdk: docker
 pinned: false
 ---
 
-# Disaster Response RL Environment
+# Disaster Response — Long-Horizon Planning Environment
 
-A flood disaster response simulation environment built on the [OpenEnv](https://github.com/meta-pytorch/OpenEnv) spec.
+> An LLM agent must plan 5–20 steps ahead to save lives in a cascading flood disaster.
+> Greedy, reactive agents fail. Only agents that reason about future states succeed.
 
-An LLM agent acts as an emergency coordinator managing rescue resources across multiple flood-affected zones under time pressure.
+Built on the [OpenEnv](https://github.com/meta-pytorch/OpenEnv) spec — Theme #2: Long-Horizon Planning & Instruction Following.
+
+---
+
+## Why This Tests Long-Horizon Planning
+
+**Multi-step dependency chains:** The optimal strategy is never "rescue now." It's:
+`medical_unit treats CRITICAL zone` → `severity drops to MODERATE` → `rescue teams extract 67% faster` → `resources freed sooner` → `cascade prevented in next zone`
+
+This 4-step dependency chain takes ~15 steps to play out. Agents that can't plan ahead miss it entirely.
+
+**Cascading uncertainty:** Every 12–20 steps, unattended zones gain more casualties and escalate severity. The agent must anticipate *which zone cascades next* and pre-position resources — not react after the fact.
+
+**Irreversibility:** Once a zone escalates to CRITICAL and stays neglected for 12+ steps, the scoring penalty is permanent. There's no catching up — only planning ahead avoids it.
+
+**Resource contention:** 4 resources share 3–8 zones. Every assignment has opportunity cost over multiple future steps (travel time, working time, return time). Short-sighted greedy allocation consistently underperforms.
+
+---
+
+## Scoring & Milestones
+
+The environment uses **sparse milestone rewards** to incentivize long-horizon planning:
+
+| Milestone | Step | Reward |
+|-----------|------|--------|
+| Quarter   | 50   | `compute_score(env)` |
+| Midpoint  | 100  | `compute_score(env)` + early commitment bonus |
+| Three-quarter | 150 | `compute_score(env)` |
+| Final     | 200  | `compute_score(env)` (submitted to OpenEnv) |
+
+All other steps return `0.0`. Agents must plan across 50-step windows, not optimize myopically.
+
+### Final Score Weights
+| Component | Weight | Description |
+|-----------|--------|-------------|
+| Rescue ratio | 45% | People saved / total casualties |
+| Time efficiency | 20% | Steps used vs max_steps |
+| Critical zone response | 20% | How quickly critical zones were attended |
+| Severity reduction | 15% | Medical unit effectiveness |
 
 ---
 
