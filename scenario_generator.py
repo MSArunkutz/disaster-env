@@ -158,6 +158,10 @@ def generate_scenario(difficulty: str) -> Dict[str, Any]:
     if difficulty not in DIFFICULTY_CONFIG:
         raise ValueError(f"Invalid difficulty: {difficulty}")
 
+    unlimited = os.getenv("UNLIMITED_MODE", "false").lower() == "true"
+    default_max = "9999" if unlimited else "200"
+    max_steps = int(os.getenv("MAX_STEPS", default_max))
+
     config    = DIFFICULTY_CONFIG[difficulty]
     zones     = generate_zones(config)
     resources = initialize_resources()
@@ -168,7 +172,7 @@ def generate_scenario(difficulty: str) -> Dict[str, Any]:
         "zones":            zones,
         "resources":        resources,
         "base_coords":      (0, 0),
-        "max_steps":        config["max_steps"],
+        "max_steps":        max_steps,
         "cascade_every":    config["cascade_every"],
         "cascade_amount":   config["cascade_amount"],
         "total_casualties": total,

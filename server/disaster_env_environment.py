@@ -4,6 +4,7 @@ Flood disaster with time-based resource management,
 parallel deployments, and medical unit severity reduction.
 """
 
+import copy
 import math
 from typing import Dict, Any, List
 
@@ -64,7 +65,9 @@ class DisasterEnvEnvironment(Environment):
         self.cascade_every    = self.scenario["cascade_every"]
         self.cascade_amount   = self.scenario["cascade_amount"]
         self.total_casualties = self.scenario["total_casualties"]
-        self.milestones       = calculate_milestones(self.difficulty, self.max_steps)
+        self.milestones         = calculate_milestones(self.difficulty, self.max_steps)
+        self._last_rescued      = 0
+        self._reward_breakdown  = None
 
     # ─── Step ─────────────────────────────────────────────────────────────────
 
@@ -337,26 +340,34 @@ class DisasterEnvEnvironment(Environment):
         if self.total_casualties == 0:
             return 0.0
 
+        # Dense: small reward for each new rescue this step
+        rescued_delta      = self.total_rescued - self._last_rescued
+        self._last_rescued = self.total_rescued
+        dense              = round(rescued_delta * 0.002, 4)
+
         is_milestone = self.current_step in self.milestones
         is_done = self.current_step >= self.max_steps or self._check_done()
 
         if not (is_milestone or is_done):
-            return 0.0
+            return dense
 
         try:
-            from graders import compute_score
+            from graders import compute_score, compute_score_breakdown
         except ImportError:
             import sys, os
             sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            from graders import compute_score
+            from graders import compute_score, compute_score_breakdown
 
         score = compute_score(self)
+        breakdown = compute_score_breakdown(self)
 
-        # Bonus at every milestone — harder difficulties reach milestones more often
         if is_milestone:
             score = min(1.0, score + 0.1)
 
-        return round(score, 4)
+        breakdown["total"] = round(score, 4)
+        self._reward_breakdown = breakdown
+
+        return round(score + dense, 4)
 
     def final_score(self) -> float:
         if self.total_casualties == 0:
@@ -418,6 +429,7 @@ class DisasterEnvEnvironment(Environment):
             available_actions   = self._format_available_actions(),
             done                = done,
             reward              = reward,
+            reward_breakdown    = self._reward_breakdown,
         )
 
     # ─── Formatters ───────────────────────────────────────────────────────────
@@ -460,6 +472,46 @@ class DisasterEnvEnvironment(Environment):
             f"ZONES: {zones}\n"
             f"Deploy all free resources in one step using deployments list."
         )
+
+    # ─── Snapshot / Restore (required for GRPO parallel rollouts) ────────────
+
+    def snapshot(self) -> Dict[str, Any]:
+        """Return a deep-copy of all mutable env state."""
+        return {
+            "difficulty":       self.difficulty,
+            "scenario":         copy.deepcopy(self.scenario),
+            "current_step":     self.current_step,
+            "total_rescued":    self.total_rescued,
+            "severity_changes": self.severity_changes,
+            "zones":            copy.deepcopy(self.zones),
+            "resources":        copy.deepcopy(self.resources),
+            "base_coords":      self.base_coords,
+            "max_steps":        self.max_steps,
+            "cascade_every":    self.cascade_every,
+            "cascade_amount":   self.cascade_amount,
+            "total_casualties": self.total_casualties,
+            "milestones":       copy.copy(self.milestones),
+            "_last_rescued":    self._last_rescued,
+            "_reward_breakdown": copy.deepcopy(self._reward_breakdown),
+        }
+
+    def restore(self, snap: Dict[str, Any]) -> None:
+        """Restore env state from a snapshot produced by snapshot()."""
+        self.difficulty        = snap["difficulty"]
+        self.scenario          = copy.deepcopy(snap["scenario"])
+        self.current_step      = snap["current_step"]
+        self.total_rescued     = snap["total_rescued"]
+        self.severity_changes  = snap["severity_changes"]
+        self.zones             = copy.deepcopy(snap["zones"])
+        self.resources         = copy.deepcopy(snap["resources"])
+        self.base_coords       = snap["base_coords"]
+        self.max_steps         = snap["max_steps"]
+        self.cascade_every     = snap["cascade_every"]
+        self.cascade_amount    = snap["cascade_amount"]
+        self.total_casualties  = snap["total_casualties"]
+        self.milestones        = copy.copy(snap["milestones"])
+        self._last_rescued     = snap["_last_rescued"]
+        self._reward_breakdown = copy.deepcopy(snap["_reward_breakdown"])
 
     # ─── State ────────────────────────────────────────────────────────────────
 

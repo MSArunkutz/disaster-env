@@ -96,3 +96,6 @@ class DisasterObservation(Observation):
     # Episode state
     done:               bool  = Field(default=False,  description="Episode done")
     reward:             float = Field(default=0.0,    description="Current reward")
+
+    # Sub-score breakdown (populated at milestone/done steps, None otherwise)
+    reward_breakdown:   Optional[Dict[str, float]] = Field(default=None, description="rescue_ratio, time_efficiency, critical_zone, severity sub-scores")

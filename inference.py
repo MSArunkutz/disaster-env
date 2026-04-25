@@ -45,15 +45,26 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
 def log_metrics(lookahead: float, recovery: int, slope: float) -> None:
     print(f"[METRICS] lookahead={lookahead:.2f} recovery_cases={recovery} reward_slope={slope:+.4f}", flush=True)
 
-def log_training_step(step, obs_dict, user_prompt, response_text, action_data, reward, done) -> dict:
+def log_scores(breakdown: dict) -> None:
+    print(
+        f"[SCORES] rescue={breakdown['rescue_ratio']:.3f} "
+        f"time={breakdown['time_efficiency']:.3f} "
+        f"zone={breakdown['critical_zone']:.3f} "
+        f"severity={breakdown['severity']:.3f} "
+        f"total={breakdown['total']:.3f}",
+        flush=True
+    )
+
+def log_training_step(step, obs_dict, user_prompt, response_text, action_data, reward, done, reward_breakdown=None) -> dict:
     return {
-        "step":           step,
-        "observation":    obs_dict,
-        "agent_prompt":   user_prompt,
-        "agent_response": response_text,
-        "action":         action_data,
-        "reward":         reward,
-        "done":           done,
+        "step":             step,
+        "observation":      obs_dict,
+        "agent_prompt":     user_prompt,
+        "agent_response":   response_text,
+        "action":           action_data,
+        "reward":           reward,
+        "reward_breakdown": reward_breakdown,
+        "done":             done,
     }
 
 def merge_all_training_data() -> Path | None:
@@ -91,7 +102,8 @@ UNLIMITED_MODE = os.getenv("UNLIMITED_MODE", "false").lower() == "true"
 TOTAL_TIME_BUDGET = 86400 if UNLIMITED_MODE else 18 * 60  # 24h or 18min
 MAX_STEPS = int(os.getenv("MAX_STEPS", "200"))
 TEMPERATURE  = 0.2
-MAX_TOKENS   = 350
+MAX_TOKENS   = 4096   # reasoning models consume most tokens in the reasoning field; needs headroom
+CONTEXT_WINDOW = 5  # last N steps kept verbatim; older steps compressed to one-liners
 
 API_BASE_URL = ""
 API_KEY      = ""
@@ -114,9 +126,12 @@ LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 
 
 DIFFICULTIES     = ["easy", "medium", "hard"]
-RUN_DIFFICULTY   = os.getenv("RUN_DIFFICULTY", "").lower()
-if RUN_DIFFICULTY in ("easy", "medium", "hard"):
-    DIFFICULTIES = [RUN_DIFFICULTY]
+_run_difficulties = os.getenv("RUN_DIFFICULTIES", "").strip()
+_run_difficulty   = os.getenv("RUN_DIFFICULTY", "").strip().lower()
+if _run_difficulties:
+    DIFFICULTIES = [d.strip().lower() for d in _run_difficulties.split(",") if d.strip().lower() in ("easy", "medium", "hard")]
+elif _run_difficulty in ("easy", "medium", "hard"):
+    DIFFICULTIES = [_run_difficulty]
 DIFFICULTY_SEEDS = {"easy": 1, "medium": 2, "hard": 3}
 
 CASCADE_INTERVALS = {"easy": 20, "medium": 15, "hard": 12}
@@ -154,6 +169,12 @@ PLANNING STRATEGY — think 5 steps ahead:
 MULTI-STEP DEPENDENCY CHAIN (exploit this):
   medical_unit treats CRITICAL → zone becomes MODERATE → rescue teams extract 67% faster
 
+MANDATORY RULE — NEVER IDLE A FREE RESOURCE:
+- Check the observation for any resource listed as FREE or AVAILABLE
+- If ANY resource is free, you MUST deploy it — empty deployments waste rescue steps and cost lives
+- {"deployments": []} is only valid when ALL resources are confirmed BUSY or TRAVELING
+- Violating this rule = mission failure
+
 RESPOND WITH:
 <think>In the next 5 steps I will: [2 sentences describing your plan and why]</think>
 {
@@ -184,6 +205,30 @@ def parse_action(response_text: str) -> DisasterAction:
         return DisasterAction(deployments=unique)
     except Exception:
         return DisasterAction(deployments=[])
+
+
+# ─── Context Window ───────────────────────────────────────────────────────────
+
+def _compress_history(old_steps: list) -> str:
+    lines = ["[Compressed history]"]
+    for h in old_steps:
+        lines.append(f"Step {h['step']}: {h['action_summary']} | reward {h['reward']:.3f}")
+    return "\n".join(lines)
+
+
+def build_messages_with_window(system_prompt: str, history: list, current_user_prompt: str) -> list:
+    messages = [{"role": "system", "content": system_prompt}]
+    window_start = max(0, len(history) - CONTEXT_WINDOW)
+    old    = history[:window_start]
+    recent = history[window_start:]
+    if old:
+        messages.append({"role": "user",      "content": _compress_history(old)})
+        messages.append({"role": "assistant",  "content": "Understood. Continuing."})
+    for h in recent:
+        messages.append({"role": "user",      "content": h["user"]})
+        messages.append({"role": "assistant",  "content": h["assistant"]})
+    messages.append({"role": "user", "content": current_user_prompt})
+    return messages
 
 
 # ─── User Prompt ──────────────────────────────────────────────────────────────
@@ -245,6 +290,7 @@ async def run_episode(client: OpenAI, env: DisasterEnv, difficulty: str, time_re
 
     training_steps = []
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    context_history = []  # sliding window: list of {step, user, assistant, action_summary, reward}
 
     log_start(task=difficulty, env=BENCHMARK, model=MODEL_NAME)
     print(f"\n{'='*50}")
@@ -267,18 +313,25 @@ async def run_episode(client: OpenAI, env: DisasterEnv, difficulty: str, time_re
             break
 
         user_prompt = build_user_prompt(obs)
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user",   "content": user_prompt},
-        ]
+        messages = build_messages_with_window(SYSTEM_PROMPT, context_history, user_prompt)
         try:
-            completion = client.chat.completions.create(
+            completion = await asyncio.to_thread(
+                client.chat.completions.create,
                 model       = MODEL_NAME,
                 messages    = messages,
                 temperature = TEMPERATURE,
                 max_tokens  = MAX_TOKENS,
             )
-            response_text = completion.choices[0].message.content or ""
+            msg = completion.choices[0].message
+            response_text = msg.content or ""
+            if not response_text:
+                # Reasoning model: answer is in msg.reasoning — extract JSON from it
+                reasoning = getattr(msg, "reasoning", None) or ""
+                if reasoning:
+                    response_text = reasoning
+                    print(f"[DEBUG] Reasoning model detected — using reasoning field ({len(reasoning)} chars)", flush=True)
+                else:
+                    print(f"[DEBUG] Empty content and no reasoning. message={msg}", flush=True)
         except Exception as exc:
             if "429" in str(exc) or "rate_limit" in str(exc).lower():
                 print("Rate limit — waiting 15s...")
@@ -288,6 +341,10 @@ async def run_episode(client: OpenAI, env: DisasterEnv, difficulty: str, time_re
             response_text = '{"deployments": []}'
 
         action = parse_action(response_text)
+        if not action.deployments:
+            print(f"[ACTION] step={step} deployments=0 raw={response_text[:200]!r}", flush=True)
+        else:
+            print(f"[ACTION] step={step} deployments={len(action.deployments)}", flush=True)
         result = await env.step(action)
         obs    = result.observation
 
@@ -304,13 +361,14 @@ async def run_episode(client: OpenAI, env: DisasterEnv, difficulty: str, time_re
             action_data = [{"resource_id": d.get("resource_id"), "targets": d.get("targets", [])}
                            for d in action.deployments]
         training_steps.append(log_training_step(
-            step          = step,
-            obs_dict      = obs_dict,
-            user_prompt   = user_prompt,
-            response_text = response_text,
-            action_data   = action_data,
-            reward        = result.reward or 0.0,
-            done          = result.done,
+            step             = step,
+            obs_dict         = obs_dict,
+            user_prompt      = user_prompt,
+            response_text    = response_text,
+            action_data      = action_data,
+            reward           = result.reward or 0.0,
+            done             = result.done,
+            reward_breakdown = obs.reward_breakdown,
         ))
 
         # Planning metrics
@@ -333,7 +391,20 @@ async def run_episode(client: OpenAI, env: DisasterEnv, difficulty: str, time_re
         action_str = json.dumps([d.get("resource_id") for d in action.deployments])
         reward_val = result.reward or 0.0
         rewards_list.append(reward_val)
+        action_summary = ", ".join(
+            f"{d.get('resource_id')}→{'+'.join(d.get('targets', []))}"
+            for d in action.deployments
+        ) or "no deployments"
+        context_history.append({
+            "step":           step,
+            "user":           user_prompt,
+            "assistant":      response_text,
+            "action_summary": action_summary,
+            "reward":         reward_val,
+        })
         log_step(step=step, action=action_str, reward=reward_val, done=result.done, error=None)
+        if obs.reward_breakdown:
+            log_scores(obs.reward_breakdown)
         _print_step(step, obs, result)
     # Save training data for this episode
     run_file = TRAINING_DATA_DIR / f"run_{difficulty}_{len(training_steps)}steps_{run_id}.jsonl"
