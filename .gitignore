@@ -27,4 +27,3 @@ Thumbs.db
 
 # Test artifacts
 .pytest_cache/
-training_data

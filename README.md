@@ -106,7 +106,14 @@ The reward function is designed so common exploitation strategies fail:
 
 ## RLVE — Environment Difficulty Adapts to Agent Skill
 
-This environment qualifies as **RLVE**: each rescue removes a person from the denominator, but neglected zones cascade and add casualties back. As the agent becomes more effective at rescuing, the pressure from the remaining zones intensifies. A better agent faces a harder environment — reward hacking that works on easy scenarios is structurally penalized at higher difficulties.
+This environment qualifies as **RLVE (Reinforcement Learning with Verifiable Environment feedback)**:
+
+- Each rescue removes a person from the casualty denominator — *improving* the agent's rescue ratio
+- But neglected zones cascade every 12–20 steps, adding casualties back — *undoing* the improvement
+- As the agent gets better at rescuing, surviving zones escalate faster under the increased load
+- A better agent faces a dynamically harder environment — strategies that work at easy difficulty are structurally penalized at higher difficulties
+
+This is not a static curriculum. The cascade mechanic means the environment *responds* to the agent's own effectiveness, making the reward signal self-adjusting without any external difficulty controller.
 
 ---
 
@@ -294,11 +301,16 @@ disaster_env/
 │   ├── collect_sft_data.py             # SFT trace collection (distillation)
 │   └── training_notebook.ipynb         # Unsloth + TRL training (SFT + GRPO)
 ├── training_data/                      # Auto-created; per-episode JSONL traces
-├── supporting_content/                 # Judges: visualizer + baseline artifacts
+├── supporting_content/                 # Judges: visualizer + eval artifacts
 │   ├── visualizer.html                 # Step-by-step training data animator
-│   ├── baseline_results.json           # Qwen2.5-3B untuned scores
-│   ├── baseline_log.json               # Per-step parse/error log
-│   └── baseline_chart.png             # Score bar chart
+│   ├── baseline/                       # Qwen2.5-3B untuned eval
+│   │   ├── baseline_results.json
+│   │   ├── baseline_log.json
+│   │   └── baseline_chart.png
+│   └── sft/                            # SFT warm-start eval
+│       ├── sft_results.json
+│       ├── sft_log.json
+│       └── sft_chart.png
 ├── models.py                           # Action/Observation dataclasses
 ├── client.py                           # HTTP/WebSocket client
 ├── scenario_generator.py               # Random scenario generation
@@ -317,9 +329,12 @@ The `supporting_content/` folder contains artifacts for judges and reproducibili
 | File | Description |
 |---|---|
 | [`visualizer.html`](supporting_content/visualizer.html) | Self-contained step-by-step training data visualizer — load any JSONL from `training_data/` and animate the agent's decisions, resource movements, and zone states |
-| [`baseline_results.json`](supporting_content/baseline_results.json) | Raw Qwen2.5-3B untuned scores: `{"easy": 0.0, "medium": 0.0, "hard": 0.216, "average": 0.072}` |
-| [`baseline_log.json`](supporting_content/baseline_log.json) | Per-step logs for all three difficulties — includes raw model output, parse success flag, and the Pydantic error that terminated the hard episode early |
-| [`baseline_chart.png`](supporting_content/baseline_chart.png) | Bar chart of untuned scores across difficulties |
+| [`baseline/baseline_results.json`](supporting_content/baseline/baseline_results.json) | Raw Qwen2.5-3B untuned scores: `{"easy": 0.0, "medium": 0.0, "hard": 0.216, "average": 0.072}` |
+| [`baseline/baseline_log.json`](supporting_content/baseline/baseline_log.json) | Per-step logs for all three difficulties — includes raw model output, parse success flag, and the Pydantic error that terminated the hard episode early |
+| [`baseline/baseline_chart.png`](supporting_content/baseline/baseline_chart.png) | Bar chart of untuned scores across difficulties |
+| [`sft/sft_results.json`](supporting_content/sft/sft_results.json) | SFT warm-start scores: `{"easy": 0.0, "medium": 0.0, "hard": 0.218, "average": 0.073}` |
+| [`sft/sft_log.json`](supporting_content/sft/sft_log.json) | Per-step logs for SFT checkpoint eval across all three difficulties |
+| [`sft/sft_chart.png`](supporting_content/sft/sft_chart.png) | Side-by-side bar chart: untuned vs SFT warm-start |
 
 ---
 
