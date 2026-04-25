@@ -73,6 +73,8 @@ Hard has more checkpoints because the 8-zone cascade pressure demands tighter fe
 | Time efficiency | 20% | Steps used vs max_steps |
 | Critical zone response | 20% | How quickly critical zones were attended |
 | Severity reduction | 15% | Medical unit effectiveness |
+| Per-step rescue delta | — | `+0.002 × rescued_delta` every step — keeps gradients alive between milestones |
+| Milestone commitment bonus | +0.1 per checkpoint | Rewards agents that commit to a plan and execute it, not ones that hedge until the end |
 
 ### Per-step reward breakdown
 
