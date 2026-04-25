@@ -1,0 +1,9 @@
+{
+  "model": "unsloth/Qwen2.5-3B-Instruct",
+  "results": {
+    "easy": 0.0,
+    "medium": 0.0,
+    "hard": 0.216,
+    "average": 0.072
+  }
+}

@@ -133,14 +133,31 @@ A flood has hit a region. The agent must coordinate 4 rescue resources across mu
 
 ## Baseline Scores
 
-Measured with `meta-llama/Llama-3.1-8B-Instruct` (no fine-tuning):
+### Teacher model — `meta-llama/Llama-3.1-8B-Instruct` (used for SFT data collection)
 
-| Difficulty | Score | Steps | Time |
-|---|---|---|---|
-| Easy | 0.9888 | 9/200 | ~4s |
-| Medium | 0.9525 | 38/200 | ~237s |
-| Hard | 0.8638 | 109/200 | ~793s |
-| **Average** | **0.9350** | | **~17 min** |
+| Difficulty | Score | Steps used |
+|---|---|---|
+| Easy | 0.9888 | 9 / 200 |
+| Medium | 0.9525 | 38 / 200 |
+| Hard | 0.8638 | 109 / 200 |
+| **Average** | **0.9350** | |
+
+This is the target: the Llama teacher solved each episode efficiently in a fraction of the allowed steps.
+
+### Student model — `Qwen2.5-3B-Instruct` untuned (our training starting point)
+
+| Difficulty | Score | Steps | Parsed | Notes |
+|---|---|---|---|---|
+| Easy | 0.0000 | 200 / 200 | 200 / 200 | Valid JSON every step — wrong field names, zero rescues |
+| Medium | 0.0000 | 200 / 200 | 200 / 200 | Same pattern — all steps exhausted, no effect on env |
+| Hard | 0.2160 | 5 / 200 | 5 / 5 | Episode crashed at step 4: model included an extra `free_resources` field that Pydantic rejected; `compute_score()` called on partial env state |
+| **Average** | **0.0720** | | | Hard score is a crash artifact, not capability |
+
+**Key insight:** `parsed=200/200` on easy/medium shows the untuned model can follow JSON format instructions — it just has no domain knowledge of which resource IDs and zone names are valid. The hard crash (`free_resources: Extra inputs are not permitted`) confirms the same: the model invents plausible-sounding fields that don't exist in `DisasterAction`.
+
+This baseline gives maximum training signal: every improvement from SFT and GRPO is measurable against a true zero.
+
+Raw scores, per-step logs, and bar chart: [`supporting_content/`](supporting_content/)
 
 ---
 
@@ -277,6 +294,11 @@ disaster_env/
 │   ├── collect_sft_data.py             # SFT trace collection (distillation)
 │   └── training_notebook.ipynb         # Unsloth + TRL training (SFT + GRPO)
 ├── training_data/                      # Auto-created; per-episode JSONL traces
+├── supporting_content/                 # Judges: visualizer + baseline artifacts
+│   ├── visualizer.html                 # Step-by-step training data animator
+│   ├── baseline_results.json           # Qwen2.5-3B untuned scores
+│   ├── baseline_log.json               # Per-step parse/error log
+│   └── baseline_chart.png             # Score bar chart
 ├── models.py                           # Action/Observation dataclasses
 ├── client.py                           # HTTP/WebSocket client
 ├── scenario_generator.py               # Random scenario generation
@@ -285,6 +307,19 @@ disaster_env/
 ├── openenv.yaml                        # OpenEnv manifest
 └── Dockerfile                          # Container definition
 ```
+
+---
+
+## Supporting Content
+
+The `supporting_content/` folder contains artifacts for judges and reproducibility:
+
+| File | Description |
+|---|---|
+| [`visualizer.html`](supporting_content/visualizer.html) | Self-contained step-by-step training data visualizer — load any JSONL from `training_data/` and animate the agent's decisions, resource movements, and zone states |
+| [`baseline_results.json`](supporting_content/baseline_results.json) | Raw Qwen2.5-3B untuned scores: `{"easy": 0.0, "medium": 0.0, "hard": 0.216, "average": 0.072}` |
+| [`baseline_log.json`](supporting_content/baseline_log.json) | Per-step logs for all three difficulties — includes raw model output, parse success flag, and the Pydantic error that terminated the hard episode early |
+| [`baseline_chart.png`](supporting_content/baseline_chart.png) | Bar chart of untuned scores across difficulties |
 
 ---
 

@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Disaster Response — Training Visualizer</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f172a;--surface:#1e293b;--surface2:#253048;--border:#334155;
+  --text:#e2e8f0;--muted:#94a3b8;--accent:#3b82f6;
+  --red:#ef4444;--amber:#f59e0b;--green:#10b981;--purple:#8b5cf6;--teal:#14b8a6;--gray:#6b7280;
+  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif
+}
+html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--text);font-size:13px;overflow:hidden}
+.app{display:flex;flex-direction:column;height:100vh}
+
+/* ── Header ─────────────────────────────── */
+.hdr{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 18px;display:flex;align-items:center;gap:14px;flex-shrink:0}
+.hdr-title{font-size:15px;font-weight:700;letter-spacing:-.3px;white-space:nowrap}
+.hdr-sub{font-size:10px;color:var(--muted);margin-top:1px;white-space:nowrap}
+.hdr-gap{flex:1}
+
+/* ── Main ────────────────────────────────── */
+.main{display:flex;flex:1;overflow:hidden}
+.map-panel{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;gap:10px;position:relative;min-width:0}
+.sidebar{width:280px;background:var(--surface);border-left:1px solid var(--border);padding:12px 14px;overflow-y:hidden;flex-shrink:0;display:flex;flex-direction:column;gap:8px}
+.sb-grow{flex:1;display:flex;flex-direction:column;min-height:0}
+.sb-grow .think{flex:1;min-height:0;max-height:none;overflow-y:auto}
+.divider{border:none;border-top:1px solid var(--border);margin:2px 0}
+
+/* ── Bottom bar ─────────────────────────── */
+.bot{background:var(--surface);border-top:1px solid var(--border);padding:10px 18px;flex-shrink:0;display:flex;flex-direction:column;gap:8px}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* ── Buttons ─────────────────────────────── */
+.btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 11px;border-radius:6px;cursor:pointer;font-size:12px;transition:background .12s;white-space:nowrap;font-family:var(--font)}
+.btn:hover{background:var(--border)}
+.btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn:disabled{opacity:.4;cursor:default}
+select{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 7px;border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--font);max-width:220px}
+input[type=range]{width:72px;cursor:pointer;accent-color:var(--accent)}
+input[type=file]{display:none}
+.file-lbl{cursor:pointer;background:var(--accent);color:#fff;padding:5px 11px;border-radius:6px;font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:5px}
+.file-lbl:hover{opacity:.88}
+
+/* ── Sidebar sections ───────────────────── */
+.sec-head{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.stat-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;font-size:12px}
+.stat-val{font-weight:600;font-variant-numeric:tabular-nums}
+.g{color:var(--green)}.r{color:var(--red)}.a{color:var(--amber)}.p{color:var(--purple)}.t{color:var(--teal)}.m{color:var(--muted)}
+
+/* Resource status rows */
+.res-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;font-size:11px}
+.badge{font-size:9px;padding:2px 5px;border-radius:3px;font-weight:600;letter-spacing:.2px}
+.bw{background:rgba(16,185,129,.18);color:var(--green)}
+.bt{background:rgba(59,130,246,.18);color:var(--accent)}
+.bf{background:rgba(148,163,184,.12);color:var(--muted)}
+.br{background:rgba(245,158,11,.18);color:var(--amber)}
+
+/* Zone rows */
+.zone-row{display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:11px}
+.zone-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+
+/* Think block */
+.think{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-size:10px;color:var(--muted);line-height:1.5;max-height:90px;overflow-y:auto}
+/* depot SVG */
+.depot-rect{fill:rgba(30,41,59,.9);stroke:#334155;stroke-width:1.5;rx:6}
+.depot-lbl{font-size:9px;font-weight:700;fill:#475569;text-anchor:middle;letter-spacing:.6px}
+
+/* Actions */
+.act-tag{background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.25);border-radius:3px;padding:2px 5px;font-size:10px;color:var(--accent);margin:2px;display:inline-block}
+
+/* ── Map SVG ─────────────────────────────── */
+.map-wrap{width:100%;max-width:520px;aspect-ratio:1}
+svg.map{width:100%;height:100%;overflow:visible}
+.map-bg{fill:rgba(15,23,42,.6)}
+.grid-line{stroke:rgba(51,65,85,.4);stroke-width:.5}
+.zone-ring{fill:none;stroke-width:2;opacity:.5}
+.zone-bg{fill-opacity:.85}
+.zone-txt{font-size:11px;font-weight:700;fill:#fff;text-anchor:middle;dominant-baseline:middle;pointer-events:none}
+.zone-sub{font-size:9px;fill:rgba(255,255,255,.75);text-anchor:middle;dominant-baseline:middle;pointer-events:none}
+.res-shape{transition:cx .45s ease,cy .45s ease,x .45s ease,y .45s ease;cursor:pointer}
+.res-lbl{font-size:8px;fill:var(--muted);text-anchor:middle;pointer-events:none;transition:x .45s ease,y .45s ease}
+.travel-line{stroke-dasharray:4 3;stroke-opacity:.35;stroke-width:1.2;fill:none;pointer-events:none}
+
+/* ── Reward curve ───────────────────────── */
+.reward-row{display:flex;align-items:center;gap:10px}
+.reward-lbl{font-size:10px;color:var(--muted);width:80px;flex-shrink:0}
+.reward-svg{flex:1;height:36px}
+.step-track-wrap{display:flex;align-items:center;gap:8px;width:100%}
+.step-lbl{font-size:10px;color:var(--muted);white-space:nowrap}
+.step-track{flex:1;height:5px;background:var(--bg);border-radius:3px;position:relative;cursor:pointer}
+.step-fill{height:100%;border-radius:3px;background:var(--accent);transition:width .15s}
+
+/* ── Info modal ─────────────────────────── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100;display:none;align-items:center;justify-content:center}
+.overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;max-width:540px;width:92%;max-height:82vh;overflow-y:auto}
+.modal h2{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+.modal-x{background:none;border:none;color:var(--muted);cursor:pointer;font-size:17px;font-family:var(--font)}
+.tbl{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px}
+.tbl th{text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;padding:3px 8px;border-bottom:1px solid var(--border);font-weight:700;letter-spacing:.4px}
+.tbl td{padding:5px 8px;border-bottom:1px solid rgba(51,65,85,.4)}
+.tbl tr:last-child td{border-bottom:none}
+.tbl td:first-child{color:var(--muted)}
+.info-h{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 6px}
+
+/* ── Drop screen ─────────────────────────── */
+#drop-screen{display:flex;align-items:center;justify-content:center;width:100%;height:100%;flex-direction:column;gap:14px}
+.drop-zone{border:2px dashed var(--border);border-radius:14px;padding:52px 40px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;max-width:460px;width:100%}
+.drop-zone.drag-over{border-color:var(--accent);background:rgba(59,130,246,.05)}
+.drop-icon{font-size:40px;margin-bottom:10px}
+.drop-title{font-size:18px;font-weight:700;margin-bottom:6px}
+.drop-sub{font-size:12px;color:var(--muted);line-height:1.6}
+.demo-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 16px;border-radius:7px;cursor:pointer;font-size:12px;font-family:var(--font)}
+.demo-btn:hover{background:var(--border)}
+
+/* ── Comparison ──────────────────────────── */
+.cmp-wrap{display:flex;gap:14px;width:100%;max-width:1040px}
+.cmp-side{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
+.cmp-head{font-size:11px;font-weight:600;color:var(--muted);text-align:center}
+
+/* ── Legend ──────────────────────────────── */
+.legend{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.leg-item{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted)}
+.leg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- Header -->
+<div class="hdr">
+  <div>
+    <div class="hdr-title">🌊 Disaster Response — Training Visualizer</div>
+    <div class="hdr-sub">Step-by-step agent playback · SFT training data</div>
+  </div>
+  <div class="hdr-gap"></div>
+
+  <select id="ep-select" style="display:none">
+    <option value="">— Episode —</option>
+  </select>
+  <select id="ep2-select" style="display:none">
+    <option value="">— Compare episode —</option>
+  </select>
+
+  <button class="btn" id="cmp-btn" style="display:none" onclick="toggleCompare()">⊞ Compare</button>
+  <button class="btn" id="info-btn" onclick="openInfo()">ⓘ Specs</button>
+
+  <label class="file-lbl" for="file-input">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    Load JSONL
+  </label>
+  <input type="file" id="file-input" accept=".jsonl" multiple onchange="handleFiles(this.files)">
+</div>
+
+<!-- Main -->
+<div class="main" id="main-area">
+
+  <!-- Drop screen (initial state) -->
+  <div id="drop-screen" style="flex:1">
+    <div class="drop-zone" id="drop-zone">
+      <div class="drop-icon">📂</div>
+      <div class="drop-title">Load training data</div>
+      <div class="drop-sub">
+        Drag &amp; drop <strong>combined_training.jsonl</strong> or individual run files<br>
+        (from <code>disaster_env/training_data/</code>)<br><br>
+        Or use the <strong>Load JSONL</strong> button above
+      </div>
+    </div>
+    <button class="demo-btn" onclick="loadDemo()">▶ Load demo data (no file needed)</button>
+  </div>
+
+  <!-- Map panel (hidden until data loaded) -->
+  <div class="map-panel" id="map-panel" style="display:none">
+    <!-- Single mode -->
+    <div id="single-map" class="map-wrap">
+      <svg class="map" id="map-svg" viewBox="0 0 500 500"></svg>
+    </div>
+    <!-- Comparison mode -->
+    <div id="cmp-maps" class="cmp-wrap" style="display:none">
+      <div class="cmp-side">
+        <div class="cmp-head" id="cmp-head-1">Episode 1</div>
+        <div class="map-wrap"><svg class="map" id="map-svg-1" viewBox="0 0 500 500"></svg></div>
+      </div>
+      <div class="cmp-side">
+        <div class="cmp-head" id="cmp-head-2">Episode 2</div>
+        <div class="map-wrap"><svg class="map" id="map-svg-2" viewBox="0 0 500 500"></svg></div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="leg-item"><div class="leg-dot" style="background:var(--red)"></div>Critical zone</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--amber)"></div>Moderate</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--green)"></div>Mild</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--gray)"></div>Cleared</div>
+      <div class="leg-item" style="border-left:1px solid var(--border);padding-left:8px"><div class="leg-dot" style="background:var(--accent);clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%)"></div>RT-1/2 (shield)</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--purple);border-radius:50% 50% 50% 50%/30% 30% 70% 70%"></div>Heli</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--teal);border-radius:2px"></div>Medical kit</div>
+      <div class="leg-item"><div style="width:8px;height:8px;border:1.5px solid #475569;border-radius:2px;background:rgba(20,30,50,.85)"></div>Depot</div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar" id="sidebar" style="display:none">
+    <div>
+      <div class="sec-head">Episode</div>
+      <div class="stat-row"><span class="m">Difficulty</span><span class="stat-val" id="s-diff">—</span></div>
+      <div class="stat-row"><span class="m">Steps</span><span class="stat-val" id="s-steps">—</span></div>
+      <div class="stat-row"><span class="m">Final Score</span><span class="stat-val g" id="s-final">—</span></div>
+    </div>
+
+    <div>
+      <div class="sec-head">Current Step</div>
+      <div class="stat-row"><span class="m">Step</span><span class="stat-val" id="s-step">—</span></div>
+      <div class="stat-row"><span class="m">Rescued</span><span class="stat-val g" id="s-rescued">—</span></div>
+      <div class="stat-row"><span class="m">Remaining</span><span class="stat-val r" id="s-remaining">—</span></div>
+      <div class="stat-row"><span class="m">Reward</span><span class="stat-val a" id="s-reward">—</span></div>
+      <div class="stat-row"><span class="m">Cumulative</span><span class="stat-val g" id="s-cumulative">—</span></div>
+    </div>
+
+    <div>
+      <div class="sec-head">Zones</div>
+      <div id="s-zones"></div>
+    </div>
+
+    <div>
+      <div class="sec-head">Resources</div>
+      <div id="s-resources"></div>
+    </div>
+
+    <div>
+      <div class="sec-head">Action Taken</div>
+      <div id="s-action" style="font-size:11px;line-height:1.6"></div>
+    </div>
+
+    <div class="sb-grow">
+      <div class="sec-head">Agent Reasoning <span style="font-size:9px;font-weight:400">(&#60;think&#62;)</span></div>
+      <div class="think" id="s-think">No reasoning block in this step.</div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- Bottom bar -->
+<div class="bot" id="bot-bar" style="display:none">
+  <div class="reward-row">
+    <div class="reward-lbl">Reward / step</div>
+    <svg class="reward-svg" id="reward-svg"></svg>
+  </div>
+  <div class="controls">
+    <button class="btn btn-icon" id="prev-btn" onclick="stepBy(-1)">◀</button>
+    <button class="btn" id="play-btn" onclick="togglePlay()">▶ Play</button>
+    <button class="btn btn-icon" id="next-btn" onclick="stepBy(1)">▶</button>
+    <div class="step-track-wrap">
+      <div class="step-lbl" id="step-lbl">0 / 0</div>
+      <div class="step-track" id="step-track" onclick="seekClick(event)">
+        <div class="step-fill" id="step-fill"></div>
+      </div>
+    </div>
+    <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)">
+      Speed <input type="range" id="speed-slider" min="0.25" max="3" step="0.25" value="1" oninput="setSpeed(this.value)">
+      <span id="speed-lbl">1×</span>
+    </label>
+  </div>
+</div>
+
+<!-- Info modal -->
+<div class="overlay" id="info-overlay" onclick="if(event.target===this)closeInfo()">
+  <div class="modal">
+    <h2>Environment Specs <button class="modal-x" onclick="closeInfo()">✕</button></h2>
+
+    <div class="info-h">Zone Mechanics</div>
+    <table class="tbl">
+      <tr><th>Property</th><th>Value</th></tr>
+      <tr><td>Zones</td><td>3 (A, B, C) — fixed per episode</td></tr>
+      <tr><td>Severity levels</td><td><span style="color:var(--red)">■</span> Critical (C) · <span style="color:var(--amber)">■</span> Moderate (M) · <span style="color:var(--green)">■</span> Mild (L)</td></tr>
+      <tr><td>Casualty count</td><td>Decreases as rescues arrive; 0 = zone cleared</td></tr>
+      <tr><td>Escalation</td><td>Unserviced zones can escalate severity over time (RLVE cascade)</td></tr>
+      <tr><td>Coordinates</td><td>Floating-point on ~5×5 grid; determines travel time</td></tr>
+    </table>
+
+    <div class="info-h">Resources</div>
+    <table class="tbl">
+      <tr><th>Resource</th><th>Symbol</th><th>Speciality</th></tr>
+      <tr><td>rescue_team_1 / 2</td><td style="color:var(--accent)">■ square</td><td>General rescue — high throughput</td></tr>
+      <tr><td>helicopter</td><td style="color:var(--purple)">◆ diamond</td><td>Fast travel, multi-zone capable</td></tr>
+      <tr><td>medical_unit</td><td style="color:var(--teal)">● circle</td><td>Reduces severity; carries supplies</td></tr>
+      <tr><th colspan="3">Status flags</th></tr>
+      <tr><td>FREE</td><td><span class="badge bf">STANDBY</span></td><td>At depot, ready — agent can redeploy</td></tr>
+      <tr><td>→Zone(Nmin)</td><td><span class="badge bt">→ Zone Nm</span></td><td>En route, ETA N minutes</td></tr>
+      <tr><td>WORKING@Zone (rescue teams)</td><td><span class="badge bw">↑ RESCUING</span></td><td>Extracting casualties from zone</td></tr>
+      <tr><td>WORKING@Zone (helicopter)</td><td><span class="badge bw">↑ AIRLIFTING</span></td><td>Fast evacuation — multi-zone capable</td></tr>
+      <tr><td>WORKING@Zone (medical unit)</td><td><span class="badge bw">♥ HEALING</span></td><td>Treating injured, reducing severity</td></tr>
+      <tr><td>RETURNING(Nmin)</td><td><span class="badge br">RESTOCKING</span></td><td>Heading back to depot to restock supplies</td></tr>
+    </table>
+
+    <div class="info-h">Reward Formula (compute_score)</div>
+    <table class="tbl">
+      <tr><th>Component</th><th>Weight</th><th>Description</th></tr>
+      <tr><td>rescue_ratio</td><td>45 %</td><td>rescued / total_casualties</td></tr>
+      <tr><td>time_efficiency</td><td>20 %</td><td>bonus for rescuing quickly</td></tr>
+      <tr><td>critical_zone</td><td>20 %</td><td>critical zones serviced first</td></tr>
+      <tr><td>severity</td><td>15 %</td><td>lower final severity = higher score</td></tr>
+    </table>
+
+    <div class="info-h">RLVE — Reinforcement Learning via Environment</div>
+    <p style="font-size:12px;color:var(--muted);line-height:1.6">
+      The cascade mechanism raises zone severity when unserviced — making the task harder as the agent improves.
+      A greedy agent that rescues the nearest zone first cannot exploit this: critical zones escalate faster
+      and cut into <em>critical_zone</em> + <em>severity</em> rewards.
+      The reward function is designed so the only winning strategy is genuine multi-zone coordination.
+    </p>
+  </div>
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────
+let allEpisodes = [];   // [{name, steps[], difficulty, finalReward}]
+let curEp = 0;
+let curStep = 0;
+let playing = false;
+let playTimer = null;
+let speed = 1.0;
+let compareMode = false;
+let curEp2 = 1;
+
+const SVG_W = 500, SVG_H = 500, PAD = 55;
+const RESOURCE_COLORS = {
+  rescue_team_1: '#3b82f6', rescue_team_2: '#60a5fa',
+  helicopter: '#8b5cf6', medical_unit: '#14b8a6'
+};
+const SEVERITY_COLORS = { C: '#ef4444', M: '#f59e0b', L: '#10b981' };
+
+// ─── File loading ─────────────────────────────────────────────────────────
+function handleFiles(files) {
+  const readers = Array.from(files).map(f => new Promise(res => {
+    const r = new FileReader();
+    r.onload = e => res({ name: f.name, text: e.target.result });
+    r.readAsText(f);
+  }));
+  Promise.all(readers).then(results => {
+    allEpisodes = [];
+    results.forEach(({ name, text }) => {
+      const eps = parseEpisodes(text, name);
+      allEpisodes.push(...eps);
+    });
+    if (allEpisodes.length) initUI();
+  });
+}
+
+function parseEpisodes(text, filename) {
+  const lines = text.trim().split('\n');
+  const rows = [];
+  lines.forEach(l => { try { rows.push(JSON.parse(l)); } catch {} });
+  if (!rows.length) return [];
+
+  // Detect episode breaks by step resets
+  const episodes = [];
+  let current = [];
+  for (let i = 0; i < rows.length; i++) {
+    if (i > 0 && rows[i].step <= rows[i - 1].step) {
+      if (current.length) episodes.push(current);
+      current = [];
+    }
+    current.push(rows[i]);
+  }
+  if (current.length) episodes.push(current);
+
+  return episodes.map((steps, idx) => {
+    const diff = steps[0].observation.difficulty || 'unknown';
+    const finalR = steps[steps.length - 1].reward || 0;
+    const base = filename.replace('.jsonl', '');
+    const name = episodes.length > 1
+      ? `${base} — ep ${idx + 1} (${diff})`
+      : `${base} (${diff})`;
+    return { name, steps, difficulty: diff, finalReward: finalR };
+  });
+}
+
+// ─── Parsing helpers ──────────────────────────────────────────────────────
+function parseZones(summary) {
+  const zones = [];
+  const re = /(\w+):\s+(\d+)left\|([A-Z])\|\(([0-9.]+),\s*([0-9.]+)\)\|([✓✗])/g;
+  let m;
+  while ((m = re.exec(summary)) !== null) {
+    zones.push({ name: m[1], left: +m[2], sev: m[3], x: +m[4], y: +m[5], covered: m[6] === '✓' });
+  }
+  return zones;
+}
+
+function parseResources(summary) {
+  const res = [];
+  const lines = summary.split('\n');
+  for (const line of lines) {
+    const m = line.match(/^\s*(\w+):\s+(.+)$/);
+    if (!m) continue;
+    const [, name, s] = m;
+    if (s.includes('FREE')) {
+      res.push({ name, status: 'FREE', target: null, eta: 0 });
+    } else if (s.startsWith('→') || s.startsWith('→')) {
+      const tm = s.match(/(\w+)\((\d+)min\)/);
+      res.push({ name, status: 'TRAVEL', target: tm?.[1], eta: +(tm?.[2] || 0) });
+    } else if (s.includes('WORKING@')) {
+      const tm = s.match(/WORKING@(\w+)\((\d+)min\)/);
+      res.push({ name, status: 'WORKING', target: tm?.[1], eta: +(tm?.[2] || 0) });
+    } else if (s.includes('RETURNING')) {
+      const tm = s.match(/RETURNING\((\d+)min\)/);
+      res.push({ name, status: 'RETURN', target: null, eta: +(tm?.[1] || 0) });
+    }
+  }
+  return res;
+}
+
+function parseThink(response) {
+  if (!response) return '';
+  const m = response.match(/<think>([\s\S]*?)<\/think>/i);
+  return m ? m[1].trim() : '';
+}
+
+function computeBounds(episodes) {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  episodes.forEach(ep => {
+    ep.steps.forEach(s => {
+      parseZones(s.observation.zones_summary).forEach(z => {
+        minX = Math.min(minX, z.x); maxX = Math.max(maxX, z.x);
+        minY = Math.min(minY, z.y); maxY = Math.max(maxY, z.y);
+      });
+    });
+  });
+  const dx = maxX - minX || 2, dy = maxY - minY || 2;
+  return { minX: minX - dx * .3, maxX: maxX + dx * .3, minY: minY - dy * .3, maxY: maxY + dy * .3 };
+}
+
+function toSVG(x, y, bounds) {
+  const sx = PAD + (x - bounds.minX) / (bounds.maxX - bounds.minX) * (SVG_W - 2 * PAD);
+  const sy = SVG_H - PAD - (y - bounds.minY) / (bounds.maxY - bounds.minY) * (SVG_H - 2 * PAD);
+  return { x: sx, y: sy };
+}
+
+// ─── UI init ──────────────────────────────────────────────────────────────
+let bounds = {};
+
+function initUI() {
+  bounds = computeBounds(allEpisodes);
+  document.getElementById('drop-screen').style.display = 'none';
+  document.getElementById('map-panel').style.display = 'flex';
+  document.getElementById('sidebar').style.display = 'flex';
+  document.getElementById('bot-bar').style.display = 'flex';
+
+  const epSel = document.getElementById('ep-select');
+  const ep2Sel = document.getElementById('ep2-select');
+  epSel.innerHTML = '';
+  ep2Sel.innerHTML = '';
+  allEpisodes.forEach((ep, i) => {
+    const o1 = new Option(ep.name, i); epSel.appendChild(o1);
+    const o2 = new Option(ep.name, i); ep2Sel.appendChild(o2);
+  });
+  ep2Sel.value = Math.min(1, allEpisodes.length - 1);
+  curEp2 = +ep2Sel.value;
+  epSel.style.display = '';
+  document.getElementById('cmp-btn').style.display = '';
+  if (allEpisodes.length >= 2) ep2Sel.style.display = compareMode ? '' : 'none';
+
+  epSel.onchange = () => { curEp = +epSel.value; curStep = 0; stopPlay(); render(); };
+  ep2Sel.onchange = () => { curEp2 = +ep2Sel.value; renderCompare(); };
+
+  curEp = 0; curStep = 0;
+  render();
+}
+
+// ─── Main render ─────────────────────────────────────────────────────────
+function render() {
+  if (!allEpisodes.length) return;
+  const ep = allEpisodes[curEp];
+  const step = ep.steps[curStep];
+  const obs = step.observation;
+  const zones = parseZones(obs.zones_summary);
+  const resources = parseResources(obs.resources_summary);
+
+  if (compareMode) {
+    renderMap(document.getElementById('map-svg-1'), zones, resources, ep);
+    const ep2 = allEpisodes[curEp2];
+    const s2 = ep2.steps[Math.min(curStep, ep2.steps.length - 1)];
+    const z2 = parseZones(s2.observation.zones_summary);
+    const r2 = parseResources(s2.observation.resources_summary);
+    renderMap(document.getElementById('map-svg-2'), z2, r2, ep2);
+    document.getElementById('cmp-head-1').textContent = ep.name;
+    document.getElementById('cmp-head-2').textContent = ep2.name;
+  } else {
+    renderMap(document.getElementById('map-svg'), zones, resources, ep);
+  }
+
+  renderSidebar(step, ep, zones, resources);
+  renderRewardCurve(ep);
+  updateControls(ep);
+}
+
+// ─── Depot layout ────────────────────────────────────────────────────────
+// Fixed pixel slots for up to 4 resources inside the depot box (lower-left corner)
+const DEPOT_X = 10, DEPOT_Y = 400, DEPOT_W = 108, DEPOT_H = 90;
+const DEPOT_SLOTS = [
+  { x: 36,  y: 425 },  // rescue_team_1
+  { x: 36,  y: 462 },  // rescue_team_2
+  { x: 84,  y: 425 },  // helicopter
+  { x: 84,  y: 462 },  // medical_unit
+];
+const RESOURCE_ORDER = ['rescue_team_1','rescue_team_2','helicopter','medical_unit'];
+function depotSlot(name) {
+  const i = RESOURCE_ORDER.indexOf(name);
+  return DEPOT_SLOTS[i >= 0 ? i : 0];
+}
+const MAX_TRAVEL_ETA = 8; // steps; used to estimate mid-flight position
+
+// ─── SVG map ──────────────────────────────────────────────────────────────
+function renderMap(svg, zones, resources, ep) {
+  svg.innerHTML = '';
+
+  // Background
+  svg.appendChild(el('rect', { x: 0, y: 0, width: SVG_W, height: SVG_H, fill: '#0c1829', rx: 8 }));
+
+  // Subtle grid
+  for (let i = 1; i < 5; i++) {
+    const gx = PAD + i * (SVG_W - 2 * PAD) / 5;
+    const gy = PAD + i * (SVG_H - 2 * PAD) / 5;
+    svg.appendChild(el('line', { x1: gx, y1: PAD, x2: gx, y2: SVG_H - PAD, class: 'grid-line' }));
+    svg.appendChild(el('line', { x1: PAD, y1: gy, x2: SVG_W - PAD, y2: gy, class: 'grid-line' }));
+  }
+
+  // ── DEPOT BOX ─────────────────────────────────────────────────────────
+  svg.appendChild(el('rect', {
+    x: DEPOT_X, y: DEPOT_Y, width: DEPOT_W, height: DEPOT_H, rx: 7,
+    fill: 'rgba(20,30,50,.85)', stroke: '#475569', 'stroke-width': 1.5
+  }));
+  // Dashed inner border for "parking bay" feel
+  svg.appendChild(el('rect', {
+    x: DEPOT_X + 4, y: DEPOT_Y + 4, width: DEPOT_W - 8, height: DEPOT_H - 8, rx: 4,
+    fill: 'none', stroke: '#334155', 'stroke-width': 1, 'stroke-dasharray': '4 3'
+  }));
+  svg.appendChild(el('text', {
+    x: DEPOT_X + DEPOT_W / 2, y: DEPOT_Y + 14,
+    'font-size': 9, 'font-weight': 700, fill: '#64748b',
+    'text-anchor': 'middle', 'letter-spacing': 1
+  }, 'DEPOT'));
+  // Two column separators: left column label and right column label
+  svg.appendChild(el('text', { x: 36, y: DEPOT_Y + 24, 'font-size': 7.5, fill: '#475569', 'text-anchor': 'middle' }, 'RESCUE'));
+  svg.appendChild(el('text', { x: 84, y: DEPOT_Y + 24, 'font-size': 7.5, fill: '#475569', 'text-anchor': 'middle' }, 'AIR/MED'));
+  // Divider
+  svg.appendChild(el('line', { x1: 60, y1: DEPOT_Y + 18, x2: 60, y2: DEPOT_Y + DEPOT_H - 6, stroke: '#334155', 'stroke-width': 1 }));
+
+  // Build zone coord map
+  const zoneCoords = {};
+  zones.forEach(z => { zoneCoords[z.name] = toSVG(z.x, z.y, bounds); });
+
+  // Compute resource positions (depot slot → mid-flight → zone)
+  const resPosMap = {};
+  resources.forEach(res => {
+    const slot = depotSlot(res.name);
+    if ((res.status === 'TRAVEL' || res.status === 'WORKING') && res.target && zoneCoords[res.target]) {
+      const zone = zoneCoords[res.target];
+      if (res.status === 'WORKING') {
+        // Tightly orbit the zone
+        const aidx = RESOURCE_ORDER.indexOf(res.name);
+        const angle = (aidx / 4) * Math.PI * 2 - Math.PI / 4;
+        resPosMap[res.name] = { x: zone.x + Math.cos(angle) * 22, y: zone.y + Math.sin(angle) * 22 };
+      } else {
+        // Mid-flight: lerp from depot slot to zone using ETA
+        const fraction = Math.max(0.1, Math.min(0.9, 1 - res.eta / MAX_TRAVEL_ETA));
+        resPosMap[res.name] = {
+          x: slot.x + (zone.x - slot.x) * fraction,
+          y: slot.y + (zone.y - slot.y) * fraction
+        };
+      }
+    } else {
+      resPosMap[res.name] = slot;
+    }
+  });
+
+  // ── TRAVEL LINES (drawn before zones so they appear behind) ─────────────
+  resources.forEach(res => {
+    const pos = resPosMap[res.name];
+    const color = RESOURCE_COLORS[res.name] || '#888';
+    if (res.status === 'TRAVEL' && res.target && zoneCoords[res.target]) {
+      const dest = zoneCoords[res.target];
+      const slot = depotSlot(res.name);
+      // Full path (faint)
+      svg.appendChild(el('line', {
+        x1: slot.x, y1: slot.y, x2: dest.x, y2: dest.y,
+        stroke: color, 'stroke-width': 1, 'stroke-dasharray': '5 4', 'stroke-opacity': 0.18, fill: 'none'
+      }));
+      // Completed portion (brighter)
+      svg.appendChild(el('line', {
+        x1: slot.x, y1: slot.y, x2: pos.x, y2: pos.y,
+        stroke: color, 'stroke-width': 1.5, 'stroke-opacity': 0.55, fill: 'none'
+      }));
+    } else if (res.status === 'RETURN') {
+      const slot = depotSlot(res.name);
+      // Last known zone: scan current zones for any clue — just draw line from center
+      svg.appendChild(el('line', {
+        x1: SVG_W / 2, y1: SVG_H / 3, x2: slot.x, y2: slot.y,
+        stroke: color, 'stroke-width': 1, 'stroke-dasharray': '3 4', 'stroke-opacity': 0.15, fill: 'none'
+      }));
+    }
+  });
+
+  // ── ZONES ────────────────────────────────────────────────────────────────
+  zones.forEach(z => {
+    const pos = toSVG(z.x, z.y, bounds);
+    const color = z.left === 0 ? '#6b7280' : (SEVERITY_COLORS[z.sev] || '#888');
+    const radius = z.left === 0 ? 30 : 30 + Math.min(z.left * 2.2, 20);
+
+    if (z.left > 0) {
+      // Animated glow ring
+      svg.appendChild(el('circle', { cx: pos.x, cy: pos.y, r: radius + 9,
+        fill: 'none', stroke: color, 'stroke-width': 2, opacity: 0.18 }));
+      svg.appendChild(el('circle', { cx: pos.x, cy: pos.y, r: radius + 4,
+        fill: 'none', stroke: color, 'stroke-width': 1.5, opacity: 0.3 }));
+    }
+    svg.appendChild(el('circle', { cx: pos.x, cy: pos.y, r: radius,
+      fill: color, opacity: z.left === 0 ? 0.28 : 0.78 }));
+
+    svg.appendChild(el('text', { x: pos.x, y: pos.y - 7, class: 'zone-txt', 'font-size': 12 }, z.name));
+    const label = z.left === 0 ? '✓ cleared' : `${z.left} left`;
+    svg.appendChild(el('text', { x: pos.x, y: pos.y + 8, class: 'zone-sub', 'font-size': 9.5 }, label));
+    if (z.left > 0) {
+      const sevLabel = { C: 'CRITICAL', M: 'MODERATE', L: 'MILD' }[z.sev] || z.sev;
+      svg.appendChild(el('text', { x: pos.x, y: pos.y + 22, class: 'zone-sub', 'font-size': 8, opacity: 0.65 }, sevLabel));
+    }
+    if (z.covered) {
+      svg.appendChild(el('text', { x: pos.x + radius - 5, y: pos.y - radius + 5,
+        'font-size': 12, fill: '#10b981', 'text-anchor': 'middle', 'dominant-baseline': 'middle' }, '✓'));
+    }
+  });
+
+  // ── RESOURCES ─────────────────────────────────────────────────────────
+  resources.forEach(res => {
+    const color = RESOURCE_COLORS[res.name] || '#888';
+    const pos = resPosMap[res.name];
+
+    // Working pulse ring
+    if (res.status === 'WORKING') {
+      svg.appendChild(el('circle', { cx: pos.x, cy: pos.y, r: 17,
+        fill: 'none', stroke: color, 'stroke-width': 1.5, opacity: 0.35 }));
+    }
+
+    resourceShape(res.name, pos, color, res.status).forEach(s => svg.appendChild(s));
+
+    // Name label below shape
+    const lbl = { rescue_team_1: 'RT-1', rescue_team_2: 'RT-2',
+      helicopter: 'HELI', medical_unit: 'MED' }[res.name] || res.name;
+    svg.appendChild(el('text', { x: pos.x, y: pos.y + 20, 'font-size': 8,
+      fill: color, 'text-anchor': 'middle', 'font-weight': 600, opacity: 0.8 }, lbl));
+
+    // Activity label + visuals when WORKING
+    if (res.status === 'WORKING') {
+      const ACT = { rescue_team_1: '↑ RESCUING', rescue_team_2: '↑ RESCUING',
+                    helicopter: '↑ AIRLIFTING', medical_unit: '♥ HEALING' };
+      const actCol = { rescue_team_1: '#60a5fa', rescue_team_2: '#60a5fa',
+                       helicopter: '#c4b5fd', medical_unit: '#5eead4' };
+      svg.appendChild(el('text', { x: pos.x, y: pos.y + 30, 'font-size': 7,
+        fill: actCol[res.name] || '#10b981', 'text-anchor': 'middle', 'font-weight': 700, opacity: 0.92 },
+        ACT[res.name] || 'WORKING'));
+
+      // Rescue teams: three small rising-person dots above the icon
+      if (res.name === 'rescue_team_1' || res.name === 'rescue_team_2') {
+        [-6, 0, 6].forEach((dx, i) => {
+          svg.appendChild(el('circle', { cx: pos.x + dx, cy: pos.y - 18 - i * 3, r: 2,
+            fill: '#fff', opacity: 0.55 - i * 0.12 }));
+        });
+      }
+      // Medical unit: three pulse-line segments radiating outward
+      if (res.name === 'medical_unit') {
+        [[1, 0], [-1, 0], [0, -1]].forEach(([nx, ny]) => {
+          svg.appendChild(el('line', {
+            x1: pos.x + nx * 12, y1: pos.y + ny * 12,
+            x2: pos.x + nx * 19, y2: pos.y + ny * 19,
+            stroke: '#5eead4', 'stroke-width': 1.5, 'stroke-opacity': 0.55,
+            'stroke-dasharray': '2 2'
+          }));
+        });
+      }
+      // Helicopter: rotating dot arc to indicate active hover
+      if (res.name === 'helicopter') {
+        [0, 90, 180, 270].forEach(deg => {
+          const rad = deg * Math.PI / 180;
+          svg.appendChild(el('circle', { cx: pos.x + Math.cos(rad) * 16, cy: pos.y + Math.sin(rad) * 16,
+            r: 1.8, fill: '#c4b5fd', opacity: 0.4 }));
+        });
+      }
+    }
+
+    // FREE at depot: small STANDBY label
+    if (res.status === 'FREE') {
+      svg.appendChild(el('text', { x: pos.x, y: pos.y + 29, 'font-size': 6.5,
+        fill: '#475569', 'text-anchor': 'middle', 'font-weight': 600 }, 'STANDBY'));
+    }
+
+    // ETA badge for in-flight resources
+    if ((res.status === 'TRAVEL' || res.status === 'WORKING') && res.eta > 0) {
+      svg.appendChild(el('rect', { x: pos.x + 8, y: pos.y - 20, width: 22, height: 11, rx: 3,
+        fill: 'rgba(15,23,42,.85)', stroke: color, 'stroke-width': .8 }));
+      svg.appendChild(el('text', { x: pos.x + 19, y: pos.y - 12, 'font-size': 7.5,
+        fill: color, 'text-anchor': 'middle', 'font-weight': 700 }, `${res.eta}m`));
+    }
+    if (res.status === 'RETURN') {
+      svg.appendChild(el('rect', { x: pos.x + 8, y: pos.y - 20, width: 40, height: 11, rx: 3,
+        fill: 'rgba(15,23,42,.85)', stroke: color, 'stroke-width': .8 }));
+      svg.appendChild(el('text', { x: pos.x + 28, y: pos.y - 12, 'font-size': 7,
+        fill: color, 'text-anchor': 'middle', 'font-weight': 700 }, 'RESTOCKING'));
+      // Small arrow pointing to depot slot
+      const slot = depotSlot(res.name);
+      const dx = slot.x - pos.x, dy = slot.y - pos.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = dx / len, ny = dy / len;
+      svg.appendChild(el('line', {
+        x1: pos.x + nx * 14, y1: pos.y + ny * 14,
+        x2: pos.x + nx * 28, y2: pos.y + ny * 28,
+        stroke: color, 'stroke-width': 1, 'stroke-opacity': 0.4, 'stroke-dasharray': '3 3'
+      }));
+    }
+  });
+}
+
+// Resource icon shapes — each returns array of SVG elements
+function resourceShape(name, pos, color, status) {
+  const els = [];
+  const op = status === 'RETURN' ? 0.45 : status === 'FREE' ? 0.65 : 1.0;
+  const { x, y } = pos;
+
+  if (name === 'rescue_team_1' || name === 'rescue_team_2') {
+    // Shield shape: rescue team badge
+    const shieldPts = `${x},${y - 11} ${x + 10},${y - 6} ${x + 10},${y + 3} ${x},${y + 11} ${x - 10},${y + 3} ${x - 10},${y - 6}`;
+    els.push(el('polygon', { points: shieldPts, fill: color, opacity: op }));
+    // Person silhouette inside: head dot + body line
+    els.push(el('circle', { cx: x, cy: y - 3, r: 3, fill: '#fff', opacity: 0.9 }));
+    els.push(el('line', { x1: x, y1: y + 1, x2: x, y2: y + 7, stroke: '#fff', 'stroke-width': 2, opacity: 0.9 }));
+
+  } else if (name === 'helicopter') {
+    // Helicopter top-down: body oval + 4 rotor arms
+    // Body
+    els.push(el('ellipse', { cx: x, cy: y, rx: 7, ry: 5, fill: color, opacity: op }));
+    // 4 rotor arms (+ cross)
+    [[-12, 0], [12, 0], [0, -10], [0, 10]].forEach(([dx, dy]) => {
+      els.push(el('line', { x1: x, y1: y, x2: x + dx, y2: y + dy,
+        stroke: color, 'stroke-width': 2, opacity: op * 0.7 }));
+    });
+    // Rotor tips (small circles)
+    [[-13, 0], [13, 0], [0, -11], [0, 11]].forEach(([dx, dy]) => {
+      els.push(el('circle', { cx: x + dx, cy: y + dy, r: 2.5, fill: color, opacity: op * 0.6 }));
+    });
+    // Tail boom
+    els.push(el('line', { x1: x - 7, y1: y, x2: x - 13, y2: y + 4,
+      stroke: color, 'stroke-width': 2, opacity: op }));
+
+  } else if (name === 'medical_unit') {
+    // Medical kit: rounded rect with red cross
+    els.push(el('rect', { x: x - 10, y: y - 10, width: 20, height: 20, rx: 4,
+      fill: color, opacity: op }));
+    // Cross
+    els.push(el('rect', { x: x - 2, y: y - 7, width: 4, height: 14, rx: 1,
+      fill: '#fff', opacity: 0.95 }));
+    els.push(el('rect', { x: x - 7, y: y - 2, width: 14, height: 4, rx: 1,
+      fill: '#fff', opacity: 0.95 }));
+  }
+  return els;
+}
+
+
+// ─── Sidebar ──────────────────────────────────────────────────────────────
+function renderSidebar(step, ep, zones, resources) {
+  const obs = step.observation;
+  const diff = ep.difficulty;
+  const diffColor = { easy: 'g', medium: 'a', hard: 'r' }[diff] || '';
+
+  document.getElementById('s-diff').textContent = diff.toUpperCase();
+  document.getElementById('s-diff').className = 'stat-val ' + diffColor;
+  document.getElementById('s-steps').textContent = ep.steps.length;
+  document.getElementById('s-final').textContent = ep.finalReward.toFixed(4);
+
+  document.getElementById('s-step').textContent = `${curStep + 1} / ${ep.steps.length}`;
+  document.getElementById('s-rescued').textContent = `${obs.total_rescued ?? '—'} / ${obs.total_casualties ?? '—'}`;
+  document.getElementById('s-remaining').textContent = (obs.total_casualties ?? 0) - (obs.total_rescued ?? 0);
+  document.getElementById('s-reward').textContent = (step.reward ?? 0).toFixed(4);
+
+  // Cumulative reward
+  const cum = ep.steps.slice(0, curStep + 1).reduce((a, s) => a + (s.reward || 0), 0);
+  document.getElementById('s-cumulative').textContent = cum.toFixed(4);
+
+  // Zones
+  const zonesDiv = document.getElementById('s-zones');
+  zonesDiv.innerHTML = '';
+  zones.forEach(z => {
+    const color = z.left === 0 ? '#6b7280' : (SEVERITY_COLORS[z.sev] || '#888');
+    const row = document.createElement('div');
+    row.className = 'zone-row';
+    row.innerHTML = `<div class="zone-dot" style="background:${color}"></div>
+      <span style="flex:1;color:var(--muted)">${z.name}</span>
+      <span style="font-weight:600">${z.left === 0 ? 'cleared' : z.left + ' left'}</span>
+      ${z.covered ? '<span style="color:var(--green);font-size:9px">✓</span>' : ''}`;
+    zonesDiv.appendChild(row);
+  });
+
+  // Resources
+  const resDiv = document.getElementById('s-resources');
+  resDiv.innerHTML = '';
+  resources.forEach(res => {
+    const color = RESOURCE_COLORS[res.name] || '#888';
+    const badgeClass = { FREE: 'bf', TRAVEL: 'bt', WORKING: 'bw', RETURN: 'br' }[res.status] || 'bf';
+    const workingLabel = {
+      rescue_team_1: '↑ RESCUING', rescue_team_2: '↑ RESCUING',
+      helicopter: '↑ AIRLIFTING', medical_unit: '♥ HEALING'
+    }[res.name] || 'WORKING';
+    const etaStr = res.eta > 0 ? ` ${res.eta}m` : '';
+    let badgeText;
+    if (res.status === 'FREE')    badgeText = 'STANDBY';
+    else if (res.status === 'TRAVEL')  badgeText = `→ ${res.target}${etaStr}`;
+    else if (res.status === 'WORKING') badgeText = `${workingLabel}${etaStr}`;
+    else if (res.status === 'RETURN')  badgeText = `RESTOCKING${etaStr}`;
+    else                               badgeText = res.status;
+    const row = document.createElement('div');
+    row.className = 'res-row';
+    row.innerHTML = `<span style="color:${color};font-weight:600">${res.name.replace('rescue_team_', 'RT').replace('helicopter', 'Heli').replace('medical_unit', 'Medical')}</span>
+      <span class="badge ${badgeClass}">${badgeText}</span>`;
+    resDiv.appendChild(row);
+  });
+
+  // Action taken
+  const actDiv = document.getElementById('s-action');
+  const action = step.action;
+  if (action && action.length) {
+    actDiv.innerHTML = action.map(a =>
+      `<span class="act-tag">${a.resource_id.replace('rescue_team_', 'RT')} → ${(a.targets || []).join(', ')}</span>`
+    ).join('');
+  } else {
+    actDiv.textContent = 'No deployments this step.';
+    actDiv.style.color = 'var(--muted)';
+  }
+
+  // Think
+  const think = parseThink(step.agent_response);
+  const thinkEl = document.getElementById('s-think');
+  thinkEl.textContent = think || 'No reasoning block in this step.';
+  thinkEl.style.opacity = think ? '1' : '0.5';
+}
+
+// ─── Reward curve SVG ─────────────────────────────────────────────────────
+function renderRewardCurve(ep) {
+  const svg = document.getElementById('reward-svg');
+  svg.innerHTML = '';
+  const rewards = ep.steps.map(s => s.reward || 0);
+  if (!rewards.length) return;
+
+  const W = svg.clientWidth || 400, H = 36;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  const maxR = Math.max(...rewards, 0.1);
+  const pts = rewards.map((r, i) => {
+    const x = (i / (rewards.length - 1 || 1)) * (W - 4) + 2;
+    const y = H - 2 - (r / maxR) * (H - 6);
+    return `${x},${y}`;
+  }).join(' ');
+
+  // Area fill
+  const areaPath = `M2,${H} L${pts.split(' ').join(' L')} L${W - 2},${H} Z`;
+  const g = el('path', { d: areaPath, fill: 'rgba(59,130,246,0.12)', stroke: 'none' });
+  svg.appendChild(g);
+
+  // Line
+  const line = el('polyline', { points: pts, fill: 'none', stroke: '#3b82f6', 'stroke-width': 1.5, 'stroke-linejoin': 'round' });
+  svg.appendChild(line);
+
+  // Current step dot
+  if (rewards.length > 0) {
+    const ci = curStep;
+    const cx2 = (ci / (rewards.length - 1 || 1)) * (W - 4) + 2;
+    const cy2 = H - 2 - (rewards[ci] / maxR) * (H - 6);
+    svg.appendChild(el('circle', { cx: cx2, cy: cy2, r: 4, fill: '#3b82f6' }));
+  }
+}
+
+// ─── Controls ─────────────────────────────────────────────────────────────
+function updateControls(ep) {
+  const total = ep.steps.length;
+  document.getElementById('step-lbl').textContent = `${curStep + 1} / ${total}`;
+  const pct = total <= 1 ? 100 : (curStep / (total - 1)) * 100;
+  document.getElementById('step-fill').style.width = pct + '%';
+  document.getElementById('prev-btn').disabled = curStep === 0;
+  document.getElementById('next-btn').disabled = curStep >= total - 1;
+  document.getElementById('play-btn').textContent = playing ? '⏸ Pause' : '▶ Play';
+}
+
+function stepBy(delta) {
+  const ep = allEpisodes[curEp];
+  curStep = Math.max(0, Math.min(ep.steps.length - 1, curStep + delta));
+  render();
+}
+
+function seekClick(ev) {
+  const track = document.getElementById('step-track');
+  const rect = track.getBoundingClientRect();
+  const ratio = (ev.clientX - rect.left) / rect.width;
+  const ep = allEpisodes[curEp];
+  curStep = Math.round(ratio * (ep.steps.length - 1));
+  curStep = Math.max(0, Math.min(ep.steps.length - 1, curStep));
+  render();
+}
+
+function togglePlay() {
+  playing = !playing;
+  if (playing) {
+    scheduleNext();
+  } else {
+    clearTimeout(playTimer);
+  }
+  updateControls(allEpisodes[curEp]);
+}
+
+function stopPlay() {
+  playing = false;
+  clearTimeout(playTimer);
+}
+
+function scheduleNext() {
+  if (!playing) return;
+  const ep = allEpisodes[curEp];
+  if (curStep >= ep.steps.length - 1) {
+    playing = false;
+    updateControls(ep);
+    return;
+  }
+  const delay = 900 / speed;
+  playTimer = setTimeout(() => {
+    curStep++;
+    render();
+    scheduleNext();
+  }, delay);
+}
+
+function setSpeed(v) {
+  speed = +v;
+  document.getElementById('speed-lbl').textContent = v + '×';
+}
+
+function toggleCompare() {
+  compareMode = !compareMode;
+  document.getElementById('cmp-btn').classList.toggle('on', compareMode);
+  document.getElementById('single-map').style.display = compareMode ? 'none' : '';
+  document.getElementById('cmp-maps').style.display = compareMode ? 'flex' : 'none';
+  document.getElementById('ep2-select').style.display = compareMode && allEpisodes.length >= 2 ? '' : 'none';
+  render();
+}
+
+function renderCompare() { render(); }
+
+// ─── Info modal ───────────────────────────────────────────────────────────
+function openInfo() { document.getElementById('info-overlay').classList.add('open'); }
+function closeInfo() { document.getElementById('info-overlay').classList.remove('open'); }
+
+// ─── SVG helper ───────────────────────────────────────────────────────────
+function el(tag, attrs = {}, text = null) {
+  const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v));
+  if (text !== null) e.textContent = text;
+  return e;
+}
+
+// ─── Drag & drop ─────────────────────────────────────────────────────────
+const dropZone = document.getElementById('drop-zone');
+['dragenter', 'dragover'].forEach(ev => dropZone.addEventListener(ev, e => {
+  e.preventDefault(); dropZone.classList.add('drag-over');
+}));
+['dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+}));
+dropZone.addEventListener('drop', e => handleFiles(e.dataTransfer.files));
+dropZone.addEventListener('click', () => document.getElementById('file-input').click());
+
+// ─── Demo data generator ──────────────────────────────────────────────────
+function loadDemo() {
+  const demoEp = buildDemoEpisode('easy', 10, 0.0);
+  const demoEp2 = buildDemoEpisode('easy', 10, 0.15, 'trained-agent (GRPO)');
+  allEpisodes = [demoEp, demoEp2];
+  initUI();
+}
+
+function buildDemoEpisode(diff, nSteps, rewardOffset, label) {
+  const zoneCoords = [
+    { name: 'Zone_A', x: 1.6, y: 4.7, initLeft: 11, initSev: 'M' },
+    { name: 'Zone_B', x: 4.1, y: 4.7, initLeft: 6, initSev: 'C' },
+    { name: 'Zone_C', x: 3.2, y: 1.6, initLeft: 11, initSev: 'L' },
+  ];
+  const resources = ['rescue_team_1', 'rescue_team_2', 'helicopter', 'medical_unit'];
+  const total = zoneCoords.reduce((s, z) => s + z.initLeft, 0);
+
+  const steps = [];
+  for (let i = 0; i < nSteps; i++) {
+    const progress = i / nSteps;
+    const rescued = Math.round(total * progress * (0.8 + rewardOffset));
+    const zones = zoneCoords.map(z => {
+      const left = Math.max(0, z.initLeft - Math.round(z.initLeft * progress * (0.9 + rewardOffset)));
+      const sev = left === 0 ? z.initSev : (progress > 0.5 + rewardOffset ? 'L' : z.initSev);
+      const covered = left < z.initLeft;
+      return `  ${z.name}: ${left}left|${sev}|(${z.x}, ${z.y})|${covered ? '✓' : '✗'}(${i + 1}s)`;
+    }).join('\n');
+
+    const resStatus = resources.map((r, ri) => {
+      const target = zoneCoords[ri % 3].name;
+      const status = i < 2 ? `→${target}(${3 - i}min)` : `WORKING@${target}(2min)`;
+      return `  ${r}: ${status}`;
+    }).join('\n');
+
+    const actions = resources.map(r => ({ resource_id: r, targets: [zoneCoords[resources.indexOf(r) % 3].name] }));
+    const reward = i < 2 ? 0 : (0.02 + progress * 0.6 + rewardOffset * 0.3) * (i % 3 === 0 ? 1.4 : 1);
+    const think = i % 2 === 0
+      ? `In the next 5 steps I will prioritize Zone_B (Critical) first, then Zone_A. I will use the helicopter for rapid deployment.`
+      : '';
+
+    steps.push({
+      step: i + 1,
+      observation: {
+        done: i === nSteps - 1,
+        reward: 0,
+        metadata: {},
+        current_step: i + 1,
+        max_steps: nSteps * 10,
+        difficulty: diff,
+        zones_summary: `ZONES:\n${zones}`,
+        resources_summary: `RESOURCES:\n${resStatus}`,
+        total_casualties: total,
+        total_rescued: rescued,
+        reward_breakdown: null
+      },
+      agent_response: think ? `<think>${think}</think>\n{"deployments": []}` : '{"deployments": []}',
+      action: actions,
+      reward: parseFloat(reward.toFixed(4)),
+      done: i === nSteps - 1
+    });
+  }
+
+  const name = label || `demo-${diff}-agent`;
+  return { name, steps, difficulty: diff, finalReward: steps[steps.length - 1].reward };
+}
+
+// keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (!allEpisodes.length) return;
+  if (e.key === 'ArrowRight') stepBy(1);
+  if (e.key === 'ArrowLeft') stepBy(-1);
+  if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+});
+</script>
+</body>
+</html>
