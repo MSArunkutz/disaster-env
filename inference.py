@@ -21,7 +21,7 @@ from datetime import datetime
 from typing import List
 
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(override=True)
 
 from openai import OpenAI
 from client import DisasterEnv
@@ -314,31 +314,43 @@ async def run_episode(client: OpenAI, env: DisasterEnv, difficulty: str, time_re
 
         user_prompt = build_user_prompt(obs)
         messages = build_messages_with_window(SYSTEM_PROMPT, context_history, user_prompt)
-        try:
-            completion = await asyncio.to_thread(
-                client.chat.completions.create,
-                model       = MODEL_NAME,
-                messages    = messages,
-                temperature = TEMPERATURE,
-                max_tokens  = MAX_TOKENS,
-            )
-            msg = completion.choices[0].message
-            response_text = msg.content or ""
-            if not response_text:
-                # Reasoning model: answer is in msg.reasoning — extract JSON from it
-                reasoning = getattr(msg, "reasoning", None) or ""
-                if reasoning:
-                    response_text = reasoning
-                    print(f"[DEBUG] Reasoning model detected — using reasoning field ({len(reasoning)} chars)", flush=True)
+        response_text = '{"deployments": []}'
+        for _attempt in range(4):
+            try:
+                completion = await asyncio.to_thread(
+                    client.chat.completions.create,
+                    model       = MODEL_NAME,
+                    messages    = messages,
+                    temperature = TEMPERATURE,
+                    max_tokens  = MAX_TOKENS,
+                )
+                msg = completion.choices[0].message
+                response_text = msg.content or ""
+                if not response_text:
+                    # Reasoning model: answer is in msg.reasoning — extract JSON from it
+                    reasoning = getattr(msg, "reasoning", None) or ""
+                    if reasoning:
+                        response_text = reasoning
+                        print(f"[DEBUG] Reasoning model detected — using reasoning field ({len(reasoning)} chars)", flush=True)
+                    else:
+                        print(f"[DEBUG] Empty content and no reasoning. message={msg}", flush=True)
+                break  # success — exit retry loop
+            except Exception as exc:
+                exc_str = str(exc)
+                if "429" in exc_str or "rate_limit" in exc_str.lower():
+                    # Daily token limit — parse required wait and bail out
+                    import re as _re
+                    m = _re.search(r"try again in (\d+)m[\d.]+s", exc_str)
+                    if m and int(m.group(1)) > 5:
+                        wait_min = int(m.group(1))
+                        print(f"Daily token limit exhausted — retry in {wait_min} min. Stopping.", flush=True)
+                        raise SystemExit(1)
+                    wait = 30 * (_attempt + 1)  # 30s, 60s, 90s, 120s
+                    print(f"Rate limit (attempt {_attempt+1}/4) — waiting {wait}s...", flush=True)
+                    await asyncio.sleep(wait)
                 else:
-                    print(f"[DEBUG] Empty content and no reasoning. message={msg}", flush=True)
-        except Exception as exc:
-            if "429" in str(exc) or "rate_limit" in str(exc).lower():
-                print("Rate limit — waiting 15s...")
-                time.sleep(15)
-            else:
-                print(f"LLM error ({exc}). Skipping.")
-            response_text = '{"deployments": []}'
+                    print(f"LLM error ({exc}). Skipping.", flush=True)
+                    break
 
         action = parse_action(response_text)
         if not action.deployments:

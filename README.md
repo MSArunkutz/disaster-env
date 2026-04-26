@@ -340,6 +340,17 @@ The `supporting_content/` folder contains artifacts for judges and reproducibili
 
 ---
 
+## Submission Links
+
+| | Link |
+|---|---|
+| HuggingFace Space | ⏳ (deploy pending) |
+| Training Notebook (Colab) | [SFT + GRPO Pipeline](https://colab.research.google.com/drive/1mUqbYiCoYP8ngyQjH32XngFDH5thnccU?usp=sharing) |
+| Code Repository | [MSArunkutz/disaster-env](https://github.com/MSArunkutz/disaster-env) |
+| Blog Post | ⏳ (post pending) |
+
+---
+
 ## Resources
 
 - [OpenEnv Repository](https://github.com/meta-pytorch/OpenEnv)
