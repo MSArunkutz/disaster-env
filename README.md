@@ -340,6 +340,67 @@ The `supporting_content/` folder contains artifacts for judges and reproducibili
 
 ---
 
+## Training Results
+
+### What the charts show
+
+**Baseline — Qwen2.5-3B untuned**
+
+![Baseline chart](supporting_content/baseline/baseline_chart.png)
+
+| Difficulty | Score | Observation |
+|---|---|---|
+| Easy | 0.0000 | Valid JSON every step, wrong resource/zone names → zero effect on env |
+| Medium | 0.0000 | Same pattern — all 200 steps exhausted, no rescues |
+| Hard | 0.2160 | Episode crashed at step 4 (Pydantic rejected extra field) — score is a crash artifact |
+| **Average** | **0.072** | |
+
+The untuned model produces syntactically correct JSON but invents field names and zone identifiers that don't exist. It has zero domain knowledge of this environment.
+
+---
+
+**SFT warm-start — Qwen2.5-3B fine-tuned on Llama-3.1-8B teacher traces**
+
+![SFT vs Baseline chart](supporting_content/sft/sft_chart.png)
+
+| Difficulty | Baseline | SFT | Delta |
+|---|---|---|---|
+| Easy | 0.0000 | 0.0000 | — |
+| Medium | 0.0000 | 0.0000 | — |
+| Hard | 0.2160 | 0.2180 | +0.001 |
+| **Average** | **0.072** | **0.073** | **+0.001** |
+
+### Analysis
+
+SFT produced minimal improvement. The easy and medium scores remain zero; the hard score improved by 0.001 — within noise. This is not unexpected:
+
+- **Format imitation ≠ domain knowledge.** The untuned model already produced valid JSON (parsed=200/200 on easy/medium). The failure was not formatting — it was wrong resource IDs and zone names. SFT on teacher traces teaches the *style* of the response but the model still hasn't learned to read the observation and extract valid identifiers.
+- **Limited teacher data.** The SFT dataset was collected from a single teacher run. More diverse traces with explicit reasoning chains would give the model better signal on *how* to map observation text to valid actions.
+- **SFT is a warm-start, not a solution.** The real learning signal comes from environment feedback — reward goes up only when the right zones are targeted with the right resources. That feedback loop requires GRPO.
+
+### What GRPO is expected to fix
+
+GRPO lets the model try actions against the live environment and receive `compute_score()` as reward. When it accidentally uses a valid resource ID and zone name and gets a non-zero reward, that signal propagates back. Over 200+ episodes the model learns:
+- Which resource IDs exist (`rescue_team_1`, `rescue_team_2`, `helicopter`, `medical_unit`)
+- Which zone names exist (`Zone_A`, `Zone_B`, ...)
+- Which ordering of deployments yields higher scores
+
+Expected trajectory: baseline 0.07 → SFT 0.07 → GRPO **0.70–0.90** (based on the environment's scoring structure and the Llama teacher's 0.935 ceiling).
+
+---
+
+## Training Status
+
+| Stage | Status | Link |
+|-------|--------|------|
+| SFT warm-start (Qwen2.5-3B on Llama teacher traces) | ✅ Complete | [arunms911/disaster-response-sft](https://huggingface.co/arunms911/disaster-response-sft) |
+| GRPO reinforcement learning | 🔄 In progress | [arunms911/disaster-response-grpo-training](https://huggingface.co/spaces/arunms911/disaster-response-grpo-training) |
+| GRPO checkpoint | ⏳ Pending training completion | — |
+
+The GRPO training space is live and configured — A10G hardware, Unsloth + TRL pipeline, reward signal from `compute_score()`. Training run not yet complete at submission time.
+
+---
+
 ## Play It — Interactive Command Center
 
 The Space homepage serves a live **Age-of-Empires-style command game** you can play directly in your browser:

@@ -167,6 +167,18 @@ That's the story we're telling with this project.
 
 
 
+## Training Status
+
+| Stage | Status |
+|-------|--------|
+| SFT warm-start | ✅ Complete — [arunms911/disaster-response-sft](https://huggingface.co/arunms911/disaster-response-sft) |
+| GRPO reinforcement learning | 🔄 In progress — [training space live](https://huggingface.co/spaces/arunms911/disaster-response-grpo-training) |
+| GRPO checkpoint | ⏳ Pending training completion |
+
+The GRPO training space is configured and running — A10G GPU, Unsloth + TRL pipeline, reward signal wired directly to `compute_score()`. The training run was not complete at submission time, but the full pipeline is in place and the SFT baseline is a real trained checkpoint.
+
+---
+
 ## What's Next
 
 This is Phase 2 of the Meta PyTorch OpenEnv hackathon. Phase 1 proved the environment works. Phase 2 proves that reasoning agents can be trained to master it.
