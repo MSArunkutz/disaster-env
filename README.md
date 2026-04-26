@@ -1,8 +1,8 @@
 ---
-title: Disaster Response RL Environment
-emoji: 🌊
-colorFrom: blue
-colorTo: red
+title: Disaster Response — Long Horizon Planning v2
+emoji: 🚁
+colorFrom: indigo
+colorTo: pink
 sdk: docker
 pinned: false
 ---
@@ -179,7 +179,7 @@ Raw scores, per-step logs, and bar chart: [`supporting_content/`](supporting_con
 
 ### 1. Clone and install
 ```bash
-git clone https://huggingface.co/spaces/your-username/disaster-env
+git clone https://huggingface.co/spaces/arunms911/disaster-env-v2
 cd disaster-env
 uv sync
 ```
@@ -221,7 +221,7 @@ python inference.py
 | `MODEL_NAME` | Model identifier (PROD mode) | required |
 | `HF_TOKEN` | HuggingFace / API key | required |
 | `MODE` | `PROD` uses API_BASE_URL, `TEST` uses Groq | `PROD` |
-| `PORT` | Server port | `8000` |
+| `PORT` | Server port | `7860` |
 | `ENV_BASE_URL` | Client→server URL | `http://localhost:8000` |
 | `DIFFICULTY` | Starting difficulty (`easy`/`medium`/`hard`) | `easy` |
 | `UNLIMITED_MODE` | Remove 18-min wall-clock limit for training runs | `false` |
@@ -272,7 +272,7 @@ python inference.py
 ### SFT data collection
 Each episode auto-saves step-level traces to `training_data/`:
 ```bash
-python training/collect_sft_data.py --episodes 60 --min-score 0.85
+python training/collect_sft_data.py --episodes 60 --min-score 0.0
 ```
 Produces JSONL with: `step`, `observation`, `agent_prompt`, `agent_response`, `action`, `reward`, `reward_breakdown`, `done`.
 
@@ -344,10 +344,12 @@ The `supporting_content/` folder contains artifacts for judges and reproducibili
 
 | | Link |
 |---|---|
-| HuggingFace Space | ⏳ (deploy pending) |
+| HuggingFace Space | [arunms911/disaster-env-v2](https://huggingface.co/spaces/arunms911/disaster-env-v2) |
 | Training Notebook (Colab) | [SFT + GRPO Pipeline](https://colab.research.google.com/drive/1mUqbYiCoYP8ngyQjH32XngFDH5thnccU?usp=sharing) |
-| Code Repository | [MSArunkutz/disaster-env](https://github.com/MSArunkutz/disaster-env) |
-| Blog Post | ⏳ (post pending) |
+| Code Repository | [arunms911/disaster-env-v2](https://huggingface.co/spaces/arunms911/disaster-env-v2) |
+| SFT Checkpoint | [arunms911/disaster-response-sft](https://huggingface.co/arunms911/disaster-response-sft) |
+| GRPO Training Space | [arunms911/disaster-response-grpo-training](https://huggingface.co/spaces/arunms911/disaster-response-grpo-training) |
+| Blog Post | [Beyond the Next Step](https://huggingface.co/spaces/arunms911/disaster-env-v2/blob/main/Blog.md) |
 
 ---
 

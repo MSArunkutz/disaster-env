@@ -44,6 +44,12 @@ app = create_app(
     max_concurrent_envs=1,
 )
 
+from fastapi.responses import RedirectResponse
+
+@app.get("/")
+def root():
+    return RedirectResponse(url="/docs")
+
 
 def main():
     """

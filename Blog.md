@@ -182,9 +182,14 @@ The age of reactive AI is ending. The age of reasoning AI is beginning. And disa
 
 ## Try It Yourself
 
-Want to try it? Deploy the environment locally and test the agent. See if you can beat the training curves. Spot where the agent makes mistakes. Understand why it makes them.
+The environment is live on HuggingFace Spaces: **[arunms911/disaster-env-v2](https://huggingface.co/spaces/arunms911/disaster-env-v2)**
 
-That's how you build better AI: by watching it fail, understanding why, and teaching it to reason.
+Hit the `/docs` endpoint for the interactive API, or clone and run locally:
+```bash
+git clone https://huggingface.co/spaces/arunms911/disaster-env-v2
+```
+
+Spot where the agent makes mistakes. Understand why it makes them. That's how you build better AI: by watching it fail, understanding why, and teaching it to reason.
 
 ---
 
