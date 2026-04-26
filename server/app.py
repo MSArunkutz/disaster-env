@@ -44,10 +44,21 @@ app = create_app(
     max_concurrent_envs=1,
 )
 
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, FileResponse
+import pathlib
+
+_GAME_HTML = pathlib.Path(__file__).parent.parent / "game.html"
 
 @app.get("/")
 def root():
+    if _GAME_HTML.exists():
+        return FileResponse(_GAME_HTML, media_type="text/html")
+    return RedirectResponse(url="/docs")
+
+@app.get("/game")
+def game():
+    if _GAME_HTML.exists():
+        return FileResponse(_GAME_HTML, media_type="text/html")
     return RedirectResponse(url="/docs")
 
 

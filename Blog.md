@@ -115,6 +115,8 @@ We took a **larger "teacher" model (Llama-3.1-8B)** and ran it on our environmen
 
 Then we fine-tuned Qwen-3B on this data. Think of it as apprenticeship. The small model learns by imitating the teacher.
 
+**SFT model checkpoint:** [arunms911/disaster-response-sft](https://huggingface.co/arunms911/disaster-response-sft)
+
 **Expected result:** Score jumps to ~0.45.
 
 ### Stage 2: GRPO (Reinforcement Learning)

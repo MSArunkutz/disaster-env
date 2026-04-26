@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Disaster Response — Command Center</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f172a;--surface:#1e293b;--surface2:#253048;--border:#334155;
+  --text:#e2e8f0;--muted:#94a3b8;--accent:#3b82f6;
+  --red:#ef4444;--amber:#f59e0b;--green:#10b981;--purple:#8b5cf6;--teal:#14b8a6;--gray:#6b7280;
+  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif
+}
+html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--text);font-size:13px;overflow:hidden}
+.app{display:flex;flex-direction:column;height:100vh}
+
+.hdr{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 18px;display:flex;align-items:center;gap:14px;flex-shrink:0}
+.hdr-title{font-size:15px;font-weight:700;letter-spacing:-.3px}
+.hdr-sub{font-size:10px;color:var(--muted);margin-top:1px}
+.hdr-gap{flex:1}
+.stat-pill{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11px;display:flex;gap:6px;align-items:center}
+.stat-pill span{font-weight:700}
+.g{color:var(--green)}.r{color:var(--red)}.a{color:var(--amber)}.p{color:var(--purple)}.t{color:var(--teal)}.m{color:var(--muted)}
+
+.main{display:flex;flex:1;overflow:hidden}
+.map-panel{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;gap:10px;position:relative;min-width:0}
+.map-wrap{width:100%;max-width:520px;aspect-ratio:1}
+svg.map{width:100%;height:100%;overflow:visible}
+
+.sidebar{width:290px;background:var(--surface);border-left:1px solid var(--border);padding:14px;overflow-y:auto;flex-shrink:0;display:flex;flex-direction:column;gap:12px}
+.sec-head{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
+
+.res-btn{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:7px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;margin-bottom:6px;transition:all .15s;font-family:var(--font);text-align:left}
+.res-btn:hover{border-color:var(--accent);background:#1e3a5f}
+.res-btn.selected{border-color:var(--accent);background:#1e3a5f;box-shadow:0 0 0 2px rgba(59,130,246,.3)}
+.res-btn.busy{opacity:.5;cursor:not-allowed}
+.res-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.res-name{font-weight:600;flex:1}
+.res-status{font-size:10px;color:var(--muted)}
+
+.deploy-list{min-height:48px;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:8px}
+.deploy-item{display:flex;align-items:center;justify-content:space-between;padding:4px 6px;border-radius:5px;margin-bottom:4px;font-size:11px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2)}
+.deploy-item:last-child{margin-bottom:0}
+.deploy-remove{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:0 2px;line-height:1}
+.deploy-remove:hover{color:var(--red)}
+.deploy-empty{color:var(--muted);font-size:11px;text-align:center;padding:8px 0}
+
+.btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 14px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s;font-family:var(--font);width:100%;margin-bottom:6px}
+.btn:hover{background:var(--border)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:#2563eb}
+.btn.danger{background:#7f1d1d;border-color:#991b1b;color:#fca5a5}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+.score-bar{height:6px;background:var(--bg);border-radius:3px;overflow:hidden;margin-top:4px}
+.score-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--green),#34d399);transition:width .4s}
+
+.zone-hint{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:6px;padding:8px 10px;font-size:11px;color:var(--accent);text-align:center}
+
+/* Start screen */
+#start-screen{display:flex;align-items:center;justify-content:center;flex:1;flex-direction:column;gap:20px}
+.start-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:36px 40px;text-align:center;max-width:440px;width:100%}
+.start-title{font-size:22px;font-weight:800;margin-bottom:8px}
+.start-sub{color:var(--muted);font-size:13px;line-height:1.6;margin-bottom:24px}
+.diff-btns{display:flex;gap:10px;justify-content:center;margin-bottom:24px}
+.diff-btn{padding:8px 20px;border-radius:8px;border:2px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:13px;font-weight:600;font-family:var(--font);transition:all .15s}
+.diff-btn:hover{border-color:var(--accent)}
+.diff-btn.active{border-color:var(--accent);background:#1e3a5f;color:#fff}
+.diff-easy.active{border-color:var(--green);background:rgba(16,185,129,.15)}
+.diff-medium.active{border-color:var(--amber);background:rgba(245,158,11,.15)}
+.diff-hard.active{border-color:var(--red);background:rgba(239,68,68,.15)}
+.start-btn{background:var(--accent);color:#fff;border:none;padding:12px 32px;border-radius:9px;font-size:15px;font-weight:700;cursor:pointer;font-family:var(--font);transition:background .15s}
+.start-btn:hover{background:#2563eb}
+
+/* Game over */
+#gameover-screen{display:none;align-items:center;justify-content:center;flex:1;flex-direction:column;gap:20px}
+.go-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:36px 40px;text-align:center;max-width:480px;width:100%}
+.go-score{font-size:52px;font-weight:900;margin:16px 0}
+.go-grade{font-size:18px;font-weight:700;margin-bottom:6px}
+.go-sub{color:var(--muted);font-size:13px;margin-bottom:20px}
+.breakdown{text-align:left;background:var(--bg);border-radius:8px;padding:12px 16px;margin-bottom:20px}
+.bd-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(51,65,85,.4);font-size:12px}
+.bd-row:last-child{border-bottom:none}
+.bd-bar{height:4px;border-radius:2px;background:var(--accent);margin-top:2px}
+
+/* Map interactive */
+.zone-clickable{cursor:pointer}
+.zone-clickable:hover .zone-hit{opacity:.2}
+.zone-hit{fill:#fff;opacity:0;transition:opacity .15s}
+.zone-targeted{animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:.8}50%{opacity:.4}}
+
+/* Log */
+.log{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-size:10px;color:var(--muted);line-height:1.6;max-height:80px;overflow-y:auto}
+
+.legend{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.leg-item{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted)}
+.leg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- Header -->
+<div class="hdr">
+  <div>
+    <div class="hdr-title">🚁 Disaster Response — Command Center</div>
+    <div class="hdr-sub">Deploy resources · Save lives · Beat the cascade</div>
+  </div>
+  <div class="hdr-gap"></div>
+  <div class="stat-pill" id="pill-step" style="display:none">Step <span id="hdr-step">0</span>/<span id="hdr-maxstep">200</span></div>
+  <div class="stat-pill" id="pill-rescued" style="display:none">Rescued <span class="g" id="hdr-rescued">0</span>/<span id="hdr-total">0</span></div>
+  <div class="stat-pill" id="pill-score" style="display:none">Score <span class="a" id="hdr-score">0.000</span></div>
+  <div class="stat-pill" id="pill-diff" style="display:none"><span id="hdr-diff">EASY</span></div>
+</div>
+
+<!-- Start screen -->
+<div id="start-screen">
+  <div class="start-card">
+    <div class="start-title">🌊 Flood Disaster</div>
+    <div class="start-sub">
+      A flood has hit the region. You command 4 rescue resources across multiple zones.<br>
+      Save as many people as possible before zones cascade out of control.
+    </div>
+    <div class="sec-head" style="margin-bottom:10px">Select Difficulty</div>
+    <div class="diff-btns">
+      <button class="diff-btn diff-easy active" onclick="selectDiff('easy',1,this)">Easy<br><small style="font-weight:400;color:var(--muted)">3 zones</small></button>
+      <button class="diff-btn diff-medium" onclick="selectDiff('medium',2,this)">Medium<br><small style="font-weight:400;color:var(--muted)">5 zones</small></button>
+      <button class="diff-btn diff-hard" onclick="selectDiff('hard',3,this)">Hard<br><small style="font-weight:400;color:var(--muted)">8 zones</small></button>
+    </div>
+    <button class="start-btn" onclick="startGame()">▶ Start Mission</button>
+  </div>
+</div>
+
+<!-- Game over screen -->
+<div id="gameover-screen">
+  <div class="go-card">
+    <div style="font-size:32px">🏁</div>
+    <div class="go-grade" id="go-grade">Mission Complete</div>
+    <div class="go-score" id="go-score">0.00</div>
+    <div class="go-sub" id="go-sub">—</div>
+    <div class="breakdown" id="go-breakdown"></div>
+    <button class="start-btn" onclick="resetToStart()">▶ Play Again</button>
+  </div>
+</div>
+
+<!-- Main game area -->
+<div class="main" id="game-area" style="display:none">
+  <div class="map-panel">
+    <div class="map-wrap">
+      <svg class="map" id="map-svg" viewBox="0 0 500 500"></svg>
+    </div>
+    <div class="legend">
+      <div class="leg-item"><div class="leg-dot" style="background:var(--red)"></div>Critical</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--amber)"></div>Moderate</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--green)"></div>Mild</div>
+      <div class="leg-item"><div class="leg-dot" style="background:var(--gray)"></div>Cleared</div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div>
+      <div class="sec-head">1. Select a Resource</div>
+      <div id="resource-list"></div>
+    </div>
+
+    <div>
+      <div class="sec-head">2. Click a Zone on the Map</div>
+      <div class="zone-hint" id="zone-hint">← Select a resource first</div>
+    </div>
+
+    <div>
+      <div class="sec-head">Planned Deployments</div>
+      <div class="deploy-list" id="deploy-list">
+        <div class="deploy-empty">No deployments planned</div>
+      </div>
+    </div>
+
+    <div>
+      <button class="btn primary" id="execute-btn" onclick="executeStep()">⚡ Execute Step</button>
+      <button class="btn" onclick="clearDeployments()">✕ Clear All</button>
+    </div>
+
+    <div>
+      <div class="sec-head">Score Progress</div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">
+        <span class="m">Cumulative</span><span class="g" id="score-display">0.000</span>
+      </div>
+      <div class="score-bar"><div class="score-fill" id="score-fill" style="width:0%"></div></div>
+    </div>
+
+    <div>
+      <div class="sec-head">Mission Log</div>
+      <div class="log" id="mission-log">Mission started. Deploy your resources.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Config ─────────────────────────────────────────────────────────────────
+const BASE = window.location.origin;
+const RESOURCE_COLORS = {
+  rescue_team_1:'#3b82f6', rescue_team_2:'#60a5fa',
+  helicopter:'#8b5cf6', medical_unit:'#14b8a6'
+};
+const RESOURCE_LABELS = {
+  rescue_team_1:'RT-1 Rescue', rescue_team_2:'RT-2 Rescue',
+  helicopter:'Helicopter', medical_unit:'Medical Unit'
+};
+const SEVERITY_COLORS = {C:'#ef4444', M:'#f59e0b', L:'#10b981'};
+const SVG_W=500, SVG_H=500, PAD=60;
+
+// ── State ──────────────────────────────────────────────────────────────────
+let obs = null;
+let zones = [];
+let resources = [];
+let selectedResource = null;
+let pendingDeployments = {}; // {resource_id: zone_name}
+let cumScore = 0;
+let difficulty = 'easy';
+let seed = 1;
+let bounds = {minX:0,maxX:5,minY:0,maxY:5};
+let logLines = [];
+
+// ── Difficulty selection ───────────────────────────────────────────────────
+function selectDiff(d, s, btn) {
+  difficulty = d; seed = s;
+  document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ── Start / Reset ──────────────────────────────────────────────────────────
+async function startGame() {
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('game-area').style.display = 'flex';
+  document.getElementById('pill-step').style.display = '';
+  document.getElementById('pill-rescued').style.display = '';
+  document.getElementById('pill-score').style.display = '';
+  document.getElementById('pill-diff').style.display = '';
+  document.getElementById('hdr-diff').textContent = difficulty.toUpperCase();
+  cumScore = 0;
+  pendingDeployments = {};
+  logLines = [];
+  addLog('Mission started. Select a resource, then click a zone.');
+
+  try {
+    const r = await fetch(`${BASE}/reset`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({seed})
+    });
+    const data = await r.json();
+    obs = data.observation || data;
+    procesState();
+    render();
+  } catch(e) {
+    addLog('⚠ Could not connect to server: ' + e.message);
+  }
+}
+
+function resetToStart() {
+  document.getElementById('gameover-screen').style.display = 'none';
+  document.getElementById('gameover-screen').style.flexDirection = '';
+  document.getElementById('start-screen').style.display = 'flex';
+  document.getElementById('start-screen').style.flexDirection = 'column';
+  document.getElementById('pill-step').style.display = 'none';
+  document.getElementById('pill-rescued').style.display = 'none';
+  document.getElementById('pill-score').style.display = 'none';
+  document.getElementById('pill-diff').style.display = 'none';
+  pendingDeployments = {};
+  selectedResource = null;
+}
+
+// ── Process observation ────────────────────────────────────────────────────
+function procesState() {
+  if (!obs) return;
+  zones = parseZones(obs.zones_summary || '');
+  resources = parseResources(obs.resources_summary || '');
+  if (zones.length) {
+    let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+    zones.forEach(z => {
+      minX=Math.min(minX,z.x); maxX=Math.max(maxX,z.x);
+      minY=Math.min(minY,z.y); maxY=Math.max(maxY,z.y);
+    });
+    const dx=maxX-minX||2, dy=maxY-minY||2;
+    bounds={minX:minX-dx*.35, maxX:maxX+dx*.35, minY:minY-dy*.35, maxY:maxY+dy*.35};
+  }
+  document.getElementById('hdr-step').textContent = obs.current_step || 0;
+  document.getElementById('hdr-maxstep').textContent = obs.max_steps || 200;
+  document.getElementById('hdr-rescued').textContent = obs.total_rescued || 0;
+  document.getElementById('hdr-total').textContent = obs.total_casualties || 0;
+  document.getElementById('hdr-score').textContent = cumScore.toFixed(3);
+  document.getElementById('score-display').textContent = cumScore.toFixed(3);
+  document.getElementById('score-fill').style.width = Math.min(cumScore*100, 100) + '%';
+}
+
+// ── Parse helpers (same as visualizer) ────────────────────────────────────
+function parseZones(summary) {
+  const zones = [];
+  const re = /(\w+):\s+(\d+)left\|([A-Z])\|\(([0-9.]+),\s*([0-9.]+)\)\|([✓✗])/g;
+  let m;
+  while((m = re.exec(summary)) !== null)
+    zones.push({name:m[1], left:+m[2], sev:m[3], x:+m[4], y:+m[5], covered:m[6]==='✓'});
+  return zones;
+}
+
+function parseResources(summary) {
+  const res = [];
+  const lines = summary.split('\n');
+  for (const line of lines) {
+    const m = line.match(/^\s*(\w+):\s+(.+)$/);
+    if (!m) continue;
+    const [, name, s] = m;
+    if (!RESOURCE_COLORS[name]) continue;
+    if (s.includes('FREE')) res.push({name, status:'FREE', target:null, eta:0});
+    else if (s.startsWith('→') || s.startsWith('→')) {
+      const tm = s.match(/(\w+)\((\d+)min\)/);
+      res.push({name, status:'TRAVEL', target:tm?.[1], eta:+(tm?.[2]||0)});
+    } else if (s.includes('WORKING@')) {
+      const tm = s.match(/WORKING@(\w+)\((\d+)min\)/);
+      res.push({name, status:'WORKING', target:tm?.[1], eta:+(tm?.[2]||0)});
+    } else if (s.includes('RETURNING')) {
+      const tm = s.match(/RETURNING\((\d+)min\)/);
+      res.push({name, status:'RETURN', target:null, eta:+(tm?.[1]||0)});
+    } else {
+      res.push({name, status:'FREE', target:null, eta:0});
+    }
+  }
+  return res;
+}
+
+function toSVG(x, y) {
+  const sx = PAD + (x-bounds.minX)/(bounds.maxX-bounds.minX)*(SVG_W-2*PAD);
+  const sy = SVG_H - PAD - (y-bounds.minY)/(bounds.maxY-bounds.minY)*(SVG_H-2*PAD);
+  return {x:sx, y:sy};
+}
+
+// ── Resource selection ─────────────────────────────────────────────────────
+function selectResource(name) {
+  const res = resources.find(r => r.name === name);
+  if (!res) return;
+  selectedResource = name;
+  renderResourceList();
+  document.getElementById('zone-hint').textContent = `"${RESOURCE_LABELS[name]}" selected — click a zone on the map`;
+  document.getElementById('zone-hint').style.color = 'var(--accent)';
+}
+
+function assignZone(zoneName) {
+  if (!selectedResource) return;
+  pendingDeployments[selectedResource] = zoneName;
+  selectedResource = null;
+  renderResourceList();
+  renderDeployList();
+  document.getElementById('zone-hint').textContent = '← Select another resource or execute';
+  document.getElementById('zone-hint').style.color = 'var(--muted)';
+  render(); // re-render to show targeting lines
+}
+
+function clearDeployments() {
+  pendingDeployments = {};
+  selectedResource = null;
+  renderResourceList();
+  renderDeployList();
+  document.getElementById('zone-hint').textContent = '← Select a resource first';
+  document.getElementById('zone-hint').style.color = 'var(--muted)';
+  render();
+}
+
+function removeDeployment(resId) {
+  delete pendingDeployments[resId];
+  renderDeployList();
+  render();
+}
+
+// ── Execute step ───────────────────────────────────────────────────────────
+async function executeStep() {
+  const btn = document.getElementById('execute-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Executing...';
+
+  const deployments = Object.entries(pendingDeployments).map(([rid, zone]) => ({
+    resource_id: rid, targets: [zone]
+  }));
+
+  // Include free resources with no explicit assignment (keep them free)
+  try {
+    const r = await fetch(`${BASE}/step`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({action:{deployments}})
+    });
+    const data = await r.json();
+    const reward = data.reward || 0;
+    cumScore += reward;
+    obs = data.observation || data;
+
+    const rescued = obs.total_rescued || 0;
+    const total = obs.total_casualties || 0;
+    addLog(`Step ${obs.current_step}: +${reward.toFixed(3)} reward | ${rescued}/${total} rescued`);
+
+    if (deployments.length > 0) {
+      const actions = deployments.map(d => `${d.resource_id.replace('rescue_team_','RT')} → ${d.targets[0]}`).join(', ');
+      addLog(`  ↳ ${actions}`);
+    }
+
+    pendingDeployments = {};
+    procesState();
+    render();
+
+    if (data.done || obs.done) {
+      showGameOver(data);
+      return;
+    }
+  } catch(e) {
+    addLog('⚠ Step error: ' + e.message);
+  }
+
+  btn.disabled = false;
+  btn.textContent = '⚡ Execute Step';
+}
+
+// ── Game over ──────────────────────────────────────────────────────────────
+function showGameOver(data) {
+  document.getElementById('game-area').style.display = 'none';
+  const go = document.getElementById('gameover-screen');
+  go.style.display = 'flex';
+  go.style.flexDirection = 'column';
+
+  const score = cumScore;
+  const pct = Math.round(score * 100);
+  document.getElementById('go-score').textContent = score.toFixed(3);
+  document.getElementById('go-score').style.color =
+    score > 0.8 ? 'var(--green)' : score > 0.5 ? 'var(--amber)' : 'var(--red)';
+
+  let grade, sub;
+  if (score > 0.85) { grade = '🏆 Outstanding Commander'; sub = 'You planned ahead and prevented the cascade.'; }
+  else if (score > 0.65) { grade = '✅ Competent Response'; sub = 'Good execution — some zones were left behind.'; }
+  else if (score > 0.35) { grade = '⚠ Needs Improvement'; sub = 'Reactive strategy. Critical zones were neglected.'; }
+  else { grade = '❌ Mission Failed'; sub = 'Greedy allocation. The cascade overwhelmed your teams.'; }
+
+  document.getElementById('go-grade').textContent = grade;
+  document.getElementById('go-sub').textContent = sub;
+
+  const bd = document.getElementById('go-breakdown');
+  const breakdown = data?.observation?.reward_breakdown || obs?.reward_breakdown;
+  if (breakdown) {
+    bd.innerHTML = Object.entries(breakdown).filter(([k]) => k !== 'total').map(([k,v]) => {
+      const pct = Math.round((v||0)*100);
+      return `<div class="bd-row"><span class="m">${k.replace(/_/g,' ')}</span><span>${pct}%</span></div>
+              <div class="bd-bar" style="width:${pct}%;background:${pct>70?'var(--green)':pct>40?'var(--amber)':'var(--red)'}"></div>`;
+    }).join('');
+  } else {
+    bd.innerHTML = `<div class="bd-row"><span class="m">Final Score</span><span class="g">${score.toFixed(3)}</span></div>`;
+  }
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function render() {
+  renderMap();
+  renderResourceList();
+  renderDeployList();
+}
+
+function renderResourceList() {
+  const div = document.getElementById('resource-list');
+  div.innerHTML = '';
+  const allRes = ['rescue_team_1','rescue_team_2','helicopter','medical_unit'];
+  allRes.forEach(name => {
+    const res = resources.find(r => r.name === name);
+    const color = RESOURCE_COLORS[name];
+    const label = RESOURCE_LABELS[name];
+    const btn = document.createElement('button');
+    btn.className = 'res-btn';
+    if (name === selectedResource) btn.classList.add('selected');
+
+    const statusText = !res ? 'unknown' :
+      res.status === 'FREE' ? 'Standby — ready to deploy' :
+      res.status === 'TRAVEL' ? `En route → ${res.target} (${res.eta}m)` :
+      res.status === 'WORKING' ? `Working @ ${res.target}` :
+      `Returning (${res.eta}m)`;
+
+    const assigned = pendingDeployments[name];
+
+    btn.innerHTML = `<div class="res-dot" style="background:${color}"></div>
+      <div style="flex:1">
+        <div class="res-name">${label}${assigned ? ` → <span style="color:var(--amber)">${assigned}</span>` : ''}</div>
+        <div class="res-status">${statusText}</div>
+      </div>`;
+
+    btn.onclick = () => selectResource(name);
+    div.appendChild(btn);
+  });
+}
+
+function renderDeployList() {
+  const div = document.getElementById('deploy-list');
+  const entries = Object.entries(pendingDeployments);
+  if (!entries.length) {
+    div.innerHTML = '<div class="deploy-empty">No deployments planned</div>';
+    return;
+  }
+  div.innerHTML = entries.map(([rid, zone]) =>
+    `<div class="deploy-item">
+      <span style="color:${RESOURCE_COLORS[rid]};font-weight:600">${rid.replace('rescue_team_','RT-').replace('helicopter','Heli').replace('medical_unit','Medical')}</span>
+      <span style="color:var(--muted)">→</span>
+      <span style="color:var(--amber);font-weight:600">${zone}</span>
+      <button class="deploy-remove" onclick="removeDeployment('${rid}')">✕</button>
+    </div>`
+  ).join('');
+}
+
+// ── SVG Map ────────────────────────────────────────────────────────────────
+const DEPOT_X=10, DEPOT_Y=400, DEPOT_W=108, DEPOT_H=90;
+const DEPOT_SLOTS=[{x:36,y:425},{x:36,y:462},{x:84,y:425},{x:84,y:462}];
+const RESOURCE_ORDER=['rescue_team_1','rescue_team_2','helicopter','medical_unit'];
+function depotSlot(name){const i=RESOURCE_ORDER.indexOf(name);return DEPOT_SLOTS[i>=0?i:0];}
+
+function renderMap() {
+  const svg = document.getElementById('map-svg');
+  svg.innerHTML = '';
+
+  svg.appendChild(el('rect',{x:0,y:0,width:SVG_W,height:SVG_H,fill:'#0c1829',rx:8}));
+  for(let i=1;i<5;i++){
+    svg.appendChild(el('line',{x1:PAD+i*(SVG_W-2*PAD)/5,y1:PAD,x2:PAD+i*(SVG_W-2*PAD)/5,y2:SVG_H-PAD,stroke:'rgba(51,65,85,.3)','stroke-width':.5}));
+    svg.appendChild(el('line',{x1:PAD,y1:PAD+i*(SVG_H-2*PAD)/5,x2:SVG_W-PAD,y2:PAD+i*(SVG_H-2*PAD)/5,stroke:'rgba(51,65,85,.3)','stroke-width':.5}));
+  }
+
+  // Depot
+  svg.appendChild(el('rect',{x:DEPOT_X,y:DEPOT_Y,width:DEPOT_W,height:DEPOT_H,rx:7,fill:'rgba(20,30,50,.85)',stroke:'#475569','stroke-width':1.5}));
+  svg.appendChild(el('rect',{x:DEPOT_X+4,y:DEPOT_Y+4,width:DEPOT_W-8,height:DEPOT_H-8,rx:4,fill:'none',stroke:'#334155','stroke-width':1,'stroke-dasharray':'4 3'}));
+  svg.appendChild(elT('text',{x:DEPOT_X+DEPOT_W/2,y:DEPOT_Y+14,'font-size':9,'font-weight':700,fill:'#64748b','text-anchor':'middle','letter-spacing':1},'DEPOT'));
+
+  // Zone coords map
+  const zoneCoords = {};
+  zones.forEach(z => { zoneCoords[z.name] = toSVG(z.x, z.y); });
+
+  // Resource positions
+  const resPosMap = {};
+  resources.forEach(res => {
+    const slot = depotSlot(res.name);
+    if ((res.status==='TRAVEL'||res.status==='WORKING') && res.target && zoneCoords[res.target]) {
+      const zone = zoneCoords[res.target];
+      if (res.status==='WORKING') {
+        const ai = RESOURCE_ORDER.indexOf(res.name);
+        const angle = (ai/4)*Math.PI*2 - Math.PI/4;
+        resPosMap[res.name] = {x:zone.x+Math.cos(angle)*22, y:zone.y+Math.sin(angle)*22};
+      } else {
+        const frac = Math.max(0.1, Math.min(0.9, 1-res.eta/8));
+        resPosMap[res.name] = {x:slot.x+(zone.x-slot.x)*frac, y:slot.y+(zone.y-slot.y)*frac};
+      }
+    } else { resPosMap[res.name] = slot; }
+  });
+
+  // Pending deployment targeting lines
+  Object.entries(pendingDeployments).forEach(([rid, zoneName]) => {
+    const resPos = resPosMap[rid] || depotSlot(rid);
+    const dest = zoneCoords[zoneName];
+    if (!dest) return;
+    const color = RESOURCE_COLORS[rid] || '#888';
+    svg.appendChild(el('line',{x1:resPos.x,y1:resPos.y,x2:dest.x,y2:dest.y,stroke:color,'stroke-width':2,'stroke-dasharray':'6 3','stroke-opacity':.7}));
+    // Arrowhead
+    const dx=dest.x-resPos.x, dy=dest.y-resPos.y, len=Math.sqrt(dx*dx+dy*dy)||1;
+    const nx=dx/len, ny=dy/len;
+    const ax=dest.x-nx*18, ay=dest.y-ny*18;
+    svg.appendChild(el('polygon',{
+      points:`${dest.x-nx*16+ny*6},${dest.y-ny*16-nx*6} ${dest.x-nx*6},${dest.y-ny*6} ${dest.x-nx*16-ny*6},${dest.y-ny*16+nx*6}`,
+      fill:color, opacity:.8
+    }));
+  });
+
+  // Travel lines
+  resources.forEach(res => {
+    const pos = resPosMap[res.name];
+    const color = RESOURCE_COLORS[res.name]||'#888';
+    if (res.status==='TRAVEL' && res.target && zoneCoords[res.target]) {
+      const slot = depotSlot(res.name);
+      svg.appendChild(el('line',{x1:slot.x,y1:slot.y,x2:zoneCoords[res.target].x,y2:zoneCoords[res.target].y,stroke:color,'stroke-width':1,'stroke-dasharray':'4 4','stroke-opacity':.2}));
+      svg.appendChild(el('line',{x1:slot.x,y1:slot.y,x2:pos.x,y2:pos.y,stroke:color,'stroke-width':1.5,'stroke-opacity':.5}));
+    }
+  });
+
+  // Zones (clickable)
+  zones.forEach(z => {
+    const pos = toSVG(z.x, z.y);
+    const color = z.left===0 ? '#6b7280' : (SEVERITY_COLORS[z.sev]||'#888');
+    const radius = z.left===0 ? 28 : 28 + Math.min(z.left*1.8, 18);
+    const isTargeted = Object.values(pendingDeployments).includes(z.name);
+
+    if (z.left>0) {
+      svg.appendChild(el('circle',{cx:pos.x,cy:pos.y,r:radius+10,fill:'none',stroke:color,'stroke-width':2,opacity:.15}));
+      svg.appendChild(el('circle',{cx:pos.x,cy:pos.y,r:radius+5,fill:'none',stroke:color,'stroke-width':1.5,opacity:isTargeted?.7:.25}));
+    }
+    svg.appendChild(el('circle',{cx:pos.x,cy:pos.y,r:radius,fill:color,opacity:z.left===0?.25:.75}));
+
+    if (isTargeted) {
+      svg.appendChild(el('circle',{cx:pos.x,cy:pos.y,r:radius+3,fill:'none',stroke:'#fff','stroke-width':2,'stroke-dasharray':'5 3',opacity:.6}));
+    }
+
+    svg.appendChild(elT('text',{x:pos.x,y:pos.y-6,'font-size':11,'font-weight':700,fill:'#fff','text-anchor':'middle','dominant-baseline':'middle'},z.name));
+    svg.appendChild(elT('text',{x:pos.x,y:pos.y+9,'font-size':9,fill:'rgba(255,255,255,.8)','text-anchor':'middle','dominant-baseline':'middle'},z.left===0?'✓ cleared':`${z.left} people`));
+    if (z.left>0) {
+      const sevLabel={C:'⚠ CRITICAL',M:'MODERATE',L:'MILD'}[z.sev]||z.sev;
+      svg.appendChild(elT('text',{x:pos.x,y:pos.y+21,'font-size':8,fill:color,'text-anchor':'middle','dominant-baseline':'middle',opacity:.85},sevLabel));
+    }
+
+    // Invisible large hit area for click
+    const hitCircle = el('circle',{cx:pos.x,cy:pos.y,r:radius+12,fill:'transparent',cursor: z.left>0?'pointer':'default'});
+    if (z.left > 0) {
+      hitCircle.addEventListener('click', () => {
+        if (!selectedResource) {
+          document.getElementById('zone-hint').textContent = '⚠ Select a resource first!';
+          document.getElementById('zone-hint').style.color = 'var(--amber)';
+          setTimeout(()=>{
+            document.getElementById('zone-hint').textContent = '← Select a resource first';
+            document.getElementById('zone-hint').style.color = 'var(--muted)';
+          }, 1500);
+          return;
+        }
+        assignZone(z.name);
+      });
+    }
+    svg.appendChild(hitCircle);
+  });
+
+  // Resources on map
+  resources.forEach(res => {
+    const color = RESOURCE_COLORS[res.name]||'#888';
+    const pos = resPosMap[res.name];
+    const isSelected = res.name === selectedResource;
+
+    if (isSelected) svg.appendChild(el('circle',{cx:pos.x,cy:pos.y,r:20,fill:'none',stroke:'#fff','stroke-width':2,'stroke-dasharray':'4 3',opacity:.8}));
+    if (res.status==='WORKING') svg.appendChild(el('circle',{cx:pos.x,cy:pos.y,r:17,fill:'none',stroke:color,'stroke-width':1.5,opacity:.4}));
+
+    resourceShapes(res.name, pos, color, res.status).forEach(s => svg.appendChild(s));
+
+    const lbl={rescue_team_1:'RT-1',rescue_team_2:'RT-2',helicopter:'HELI',medical_unit:'MED'}[res.name]||res.name;
+    svg.appendChild(elT('text',{x:pos.x,y:pos.y+20,'font-size':8,fill:color,'text-anchor':'middle','font-weight':600,opacity:.85},lbl));
+
+    if (res.status==='WORKING') {
+      const actLbl={rescue_team_1:'↑ RESCUING',rescue_team_2:'↑ RESCUING',helicopter:'↑ AIRLIFTING',medical_unit:'♥ HEALING'}[res.name]||'WORKING';
+      svg.appendChild(elT('text',{x:pos.x,y:pos.y+30,'font-size':7,fill:color,'text-anchor':'middle','font-weight':700},actLbl));
+    }
+    if ((res.status==='TRAVEL'||res.status==='WORKING') && res.eta>0) {
+      svg.appendChild(el('rect',{x:pos.x+8,y:pos.y-20,width:22,height:11,rx:3,fill:'rgba(15,23,42,.85)',stroke:color,'stroke-width':.8}));
+      svg.appendChild(elT('text',{x:pos.x+19,y:pos.y-12,'font-size':7.5,fill:color,'text-anchor':'middle','font-weight':700},`${res.eta}m`));
+    }
+  });
+}
+
+function resourceShapes(name, pos, color, status) {
+  const els=[], op=status==='RETURN'?.45:status==='FREE'?.65:1.0, {x,y}=pos;
+  if (name==='rescue_team_1'||name==='rescue_team_2') {
+    const pts=`${x},${y-11} ${x+10},${y-6} ${x+10},${y+3} ${x},${y+11} ${x-10},${y+3} ${x-10},${y-6}`;
+    els.push(el('polygon',{points:pts,fill:color,opacity:op}));
+    els.push(el('circle',{cx:x,cy:y-3,r:3,fill:'#fff',opacity:.9}));
+    els.push(el('line',{x1:x,y1:y+1,x2:x,y2:y+7,stroke:'#fff','stroke-width':2,opacity:.9}));
+  } else if (name==='helicopter') {
+    els.push(el('ellipse',{cx:x,cy:y,rx:7,ry:5,fill:color,opacity:op}));
+    [[-12,0],[12,0],[0,-10],[0,10]].forEach(([dx,dy])=>els.push(el('line',{x1:x,y1:y,x2:x+dx,y2:y+dy,stroke:color,'stroke-width':2,opacity:op*.7})));
+    [[-13,0],[13,0],[0,-11],[0,11]].forEach(([dx,dy])=>els.push(el('circle',{cx:x+dx,cy:y+dy,r:2.5,fill:color,opacity:op*.6})));
+  } else if (name==='medical_unit') {
+    els.push(el('rect',{x:x-10,y:y-10,width:20,height:20,rx:4,fill:color,opacity:op}));
+    els.push(el('rect',{x:x-2,y:y-7,width:4,height:14,rx:1,fill:'#fff',opacity:.95}));
+    els.push(el('rect',{x:x-7,y:y-2,width:14,height:4,rx:1,fill:'#fff',opacity:.95}));
+  }
+  return els;
+}
+
+// ── SVG helpers ────────────────────────────────────────────────────────────
+function el(tag, attrs={}) {
+  const e=document.createElementNS('http://www.w3.org/2000/svg',tag);
+  Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));
+  return e;
+}
+function elT(tag, attrs={}, text='') {
+  const e=el(tag,attrs); e.textContent=text; return e;
+}
+
+// ── Log ────────────────────────────────────────────────────────────────────
+function addLog(msg) {
+  logLines.unshift(msg);
+  if (logLines.length>20) logLines.pop();
+  document.getElementById('mission-log').textContent = logLines.join('\n');
+}
+
+// ── Keyboard ───────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key==='Enter' && document.getElementById('game-area').style.display!=='none') executeStep();
+  if (e.key==='Escape') { selectedResource=null; renderResourceList(); }
+});
+</script>
+</body>
+</html>

@@ -334,7 +334,7 @@ The `supporting_content/` folder contains artifacts for judges and reproducibili
 | [`baseline/baseline_results.json`](supporting_content/baseline/baseline_results.json) | Raw Qwen2.5-3B untuned scores: `{"easy": 0.0, "medium": 0.0, "hard": 0.216, "average": 0.072}` |
 | [`baseline/baseline_log.json`](supporting_content/baseline/baseline_log.json) | Per-step logs for all three difficulties — includes raw model output, parse success flag, and the Pydantic error that terminated the hard episode early |
 | [`baseline/baseline_chart.png`](supporting_content/baseline/baseline_chart.png) | Bar chart of untuned scores across difficulties |
-| [`sft/sft_results.json`](supporting_content/sft/sft_results.json) | SFT warm-start scores: `{"easy": 0.0, "medium": 0.0, "hard": 0.218, "average": 0.073}` |
+| [`sft/sft_results.json`](supporting_content/sft/sft_results.json) | SFT warm-start scores: `{"easy": 0.0, "medium": 0.0, "hard": 0.218, "average": 0.073}` — model checkpoint: [arunms911/disaster-response-sft](https://huggingface.co/arunms911/disaster-response-sft) |
 | [`sft/sft_log.json`](supporting_content/sft/sft_log.json) | Per-step logs for SFT checkpoint eval across all three difficulties |
 | [`sft/sft_chart.png`](supporting_content/sft/sft_chart.png) | Side-by-side bar chart: untuned vs SFT warm-start |
 
