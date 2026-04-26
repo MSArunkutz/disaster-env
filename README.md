@@ -340,6 +340,22 @@ The `supporting_content/` folder contains artifacts for judges and reproducibili
 
 ---
 
+## Play It — Interactive Command Center
+
+The Space homepage serves a live **Age-of-Empires-style command game** you can play directly in your browser:
+
+1. **Pick a difficulty** — Easy (3 zones), Medium (5 zones), Hard (8 zones)
+2. **Click a resource** in the sidebar — rescue teams, helicopter, or medical unit
+3. **Click a zone** on the SVG map — a deployment arrow appears
+4. **Hit Execute Step** — resources move, casualties drop, cascades tick
+5. Keep going until all zones are cleared or time runs out — you get a final score and grade
+
+The game runs against the live environment over a persistent WebSocket session, so every step is a real simulation tick. It's the fastest way to feel why greedy allocation fails and why planning ahead wins.
+
+**[▶ Open the Command Center](https://huggingface.co/spaces/arunms911/disaster-env-v2)**
+
+---
+
 ## Submission Links
 
 | | Link |

@@ -182,11 +182,24 @@ The age of reactive AI is ending. The age of reasoning AI is beginning. And disa
 
 ---
 
-## Try It Yourself
+## Try It Yourself — Play the Command Center
 
-The environment is live on HuggingFace Spaces: **[arunms911/disaster-env-v2](https://huggingface.co/spaces/arunms911/disaster-env-v2)**
+The environment is live on HuggingFace Spaces, and the homepage is an interactive game you can play right now in your browser:
 
-Hit the `/docs` endpoint for the interactive API, or clone and run locally:
+**[▶ Open the Command Center](https://huggingface.co/spaces/arunms911/disaster-env-v2)**
+
+It works like a simplified Age-of-Empires command interface:
+
+- Click a resource (rescue team, helicopter, medical unit)
+- Click a zone on the map to assign it
+- Hit **Execute Step** — watch the resources move, casualties drop, cascades tick
+- Repeat until the episode ends — you get a final score and a grade
+
+Every step runs against the live environment over a real WebSocket session. You're not playing a simulation of a simulation — you're playing the actual training environment. You'll feel viscerally why greedy allocation fails: the moment you ignore a critical zone, it escalates, and the cascade compounds.
+
+That experience — the gut-check of watching a neglected zone blow up — is exactly what the agent has to learn through training.
+
+For the raw API, hit `/docs` for the interactive Swagger UI. Or clone and run locally:
 ```bash
 git clone https://huggingface.co/spaces/arunms911/disaster-env-v2
 ```

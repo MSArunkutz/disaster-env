@@ -199,7 +199,6 @@ svg.map{width:100%;height:100%;overflow:visible}
 
 <script>
 // ── Config ─────────────────────────────────────────────────────────────────
-const BASE = window.location.origin;
 const RESOURCE_COLORS = {
   rescue_team_1:'#3b82f6', rescue_team_2:'#60a5fa',
   helicopter:'#8b5cf6', medical_unit:'#14b8a6'
@@ -223,6 +222,55 @@ let seed = 1;
 let bounds = {minX:0,maxX:5,minY:0,maxY:5};
 let logLines = [];
 
+// ── WebSocket (stateful session) ───────────────────────────────────────────
+let ws = null;
+let _wsResolve = null;
+let _wsReject = null;
+
+function wsUrl() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  return `${proto}://${location.host}/ws`;
+}
+
+function wsConnect() {
+  return new Promise((resolve, reject) => {
+    ws = new WebSocket(wsUrl());
+    ws.onopen = () => resolve();
+    ws.onerror = () => reject(new Error('WebSocket connection failed'));
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        const res = _wsResolve;
+        const rej = _wsReject;
+        _wsResolve = null; _wsReject = null;
+        if (!res) return;
+        if (msg.type === 'error') rej(new Error(msg.data?.message || 'Server error'));
+        else res(msg.data); // {observation:{...}, reward, done}
+      } catch(e) {
+        if (_wsReject) { _wsReject(e); _wsResolve = null; _wsReject = null; }
+      }
+    };
+    ws.onclose = () => {
+      if (_wsReject) { _wsReject(new Error('WebSocket closed')); _wsResolve = null; _wsReject = null; }
+      ws = null;
+    };
+  });
+}
+
+function wsSend(msg) {
+  return new Promise((resolve, reject) => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      reject(new Error('WebSocket not connected')); return;
+    }
+    _wsResolve = resolve; _wsReject = reject;
+    ws.send(JSON.stringify(msg));
+  });
+}
+
+function wsClose() {
+  if (ws) { try { ws.send(JSON.stringify({type:'close'})); } catch(_){} ws.close(); ws = null; }
+}
+
 // ── Difficulty selection ───────────────────────────────────────────────────
 function selectDiff(d, s, btn) {
   difficulty = d; seed = s;
@@ -242,23 +290,25 @@ async function startGame() {
   cumScore = 0;
   pendingDeployments = {};
   logLines = [];
-  addLog('Mission started. Select a resource, then click a zone.');
+  addLog('Connecting to server...');
 
   try {
-    const r = await fetch(`${BASE}/reset`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({seed})
-    });
-    const data = await r.json();
+    wsClose();
+    await wsConnect();
+    addLog('Connected. Initializing environment...');
+    const data = await wsSend({type:'reset', data:{seed}});
+    // data = {observation:{...}, reward:null, done:false}
     obs = data.observation || data;
     procesState();
     render();
+    addLog('Mission started. Select a resource, then click a zone.');
   } catch(e) {
     addLog('⚠ Could not connect to server: ' + e.message);
   }
 }
 
 function resetToStart() {
+  wsClose();
   document.getElementById('gameover-screen').style.display = 'none';
   document.getElementById('gameover-screen').style.flexDirection = '';
   document.getElementById('start-screen').style.display = 'flex';
@@ -382,13 +432,10 @@ async function executeStep() {
     resource_id: rid, targets: [zone]
   }));
 
-  // Include free resources with no explicit assignment (keep them free)
   try {
-    const r = await fetch(`${BASE}/step`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({action:{deployments}})
-    });
-    const data = await r.json();
+    // WS step: data field is the action payload (deployments list)
+    const data = await wsSend({type:'step', data:{deployments}});
+    // data = {observation:{...}, reward:0.002, done:false}
     const reward = data.reward || 0;
     cumScore += reward;
     obs = data.observation || data;
@@ -406,7 +453,7 @@ async function executeStep() {
     procesState();
     render();
 
-    if (data.done || obs.done) {
+    if (data.done) {
       showGameOver(data);
       return;
     }
